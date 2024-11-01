@@ -22,18 +22,19 @@ func main() {
 		os.Exit(1)
 	}
 	conn, err := l.Accept()
-	defer l.Close()
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
 	}
-
-	handleConnection(conn)
+	defer l.Close()
+	defer conn.Close()
+	
+	for {	
+		handleConnection(conn)
+	}
 }
 
 func handleConnection(conn net.Conn) {
-	defer conn.Close()
-
 	bytesRead := make([]byte, 128)
 	_, err := conn.Read(bytesRead)
 	if err != nil {
