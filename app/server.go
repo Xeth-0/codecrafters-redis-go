@@ -42,7 +42,7 @@ func handleConnection(conn net.Conn) {
 	}
 
 	// Debugging incoming stream.
-	fmt.Println("Incoming bytes", bytesRead)
+	fmt.Println("Incoming bytes =>", bytesRead)
 
 	// Hardcoding the response for this stage (Parsing comes later).
 	conn.Write([]byte("+PONG\r\n"))
