@@ -21,15 +21,31 @@ func main() {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
 	defer l.Close()
-	defer conn.Close()
-	
-	for {	
+
+	// 10 just because. Wanted to avoid the constant array resize/reallocations at low numbers.
+	queue := make([]net.Conn, 10)
+
+	for {
+		// Accept new connection
+		newConn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		defer newConn.Close()
+
+		queue = append(queue, newConn)
+
+		// My makeshift queue pop(dequeue)
+		conn := queue[0]
+		if len(queue) == 1 {
+			queue = make([]net.Conn, 10)
+		} else {
+			queue = queue[1:]
+		}
+
+		// Handle the connection
 		handleConnection(conn)
 	}
 }
