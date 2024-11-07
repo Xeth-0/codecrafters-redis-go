@@ -21,7 +21,6 @@ func parseRESP(packet []byte) (RESP, error) {
 	// TODO:  Going to assume we get the right type for now. HANDLE THIS LATER
 
 	resp.RawBytes = packet
-	resp.Data = packet[1:] // Actual contents of the resp, excl the type and crlf
 
 	// Parse the request
 	switch resp.respType {
@@ -122,63 +121,4 @@ func _parseRESP_Bulk(respBytes []byte) RESP {
 	return resp
 }
 
-// func _parseNextRESP(respBytes []byte) int {
-// 	// Iterates until it finds the end of the current RESP request.
-// 	// Tf am i gonna do if it's an array. aaaaaaaaand got it
 
-// 	switch RESPType(respBytes[0]) {
-// 	case RESPTypes.Array: // doesn't go until first the crlf like the others.
-// 		arrayLength := int(respBytes[1] - '0')
-// 		p := 3 // skipping past the \r\n after the length.
-
-// 		for ; arrayLength >= 1; arrayLength-- { // until we've traversed all the elements of the array.
-// 			if p >= len(respBytes) {
-// 				fmt.Println("Error parsing array: reached the end of the request bytes but there are undiscovered array elements")
-// 				os.Exit(0)
-// 			}
-
-// 		}
-// 		return p
-// 	case RESPTypes.Integer:
-
-// 	case RESPTypes.Bulk:
-
-// 	case RESPTypes.String:
-
-// 	case RESPTypes.Error:
-// 	}
-
-// 	return -1 // backup
-// }
-
-// func parseRequest(packet []byte) {
-// 	// requestString := string(packet)
-// 	start := 1
-
-// 	for {
-// 		sectionLen, subsection := something(packet[start:])
-// 		if sectionLen == 0 && subsection == 0{
-// 			// End of packet?
-// 			break
-// 		}
-// 		start ++
-// 		if packet[start] == '\r' && packet[start + 1] == '\n'{
-// 			start = sectionLen + 3
-// 		}
-// 	}
-// }
-// func something(packet []byte) (int, int) {
-// 	length := 0
-// 	i := 0
-
-// 	for i < len(packet) {
-// 		if packet[i] == '\r' {
-// 			break
-// 		}
-
-// 		length = (length * 10) + i + 1
-// 		i++
-// 	}
-
-// 	return length, i
-// }
