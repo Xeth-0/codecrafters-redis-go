@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -26,23 +27,61 @@ func main() {
 	}
 }
 
-
 func handleConnection(conn net.Conn) {
-	// fmt.Println("Connection: ", conn)
 	defer conn.Close()
 
 	for {
-		bytesRead := make([]byte, 128)
+		readBuffer := make([]byte, 128)
+
+		// Deadline to stop listening to read/write from the tcp connection
 		conn.SetDeadline(time.Now().Add(100 * time.Millisecond))
-		_, err := conn.Read(bytesRead)
+
+		// Read the request.
+		len, err := conn.Read(readBuffer)
 		if err != nil { // nothing read or encountered an error.
 			return
 		}
-	
+
+		// Cut off the empty bytes at the end
+		readBuffer = readBuffer[:len]
+
 		// Debugging incoming stream.
-		fmt.Println("Incoming bytes =>", bytesRead)
-	
+		fmt.Println("Incoming bytes =>", readBuffer)
+
+		// fmt.Println("Incoming bytes =>", string(bytesRead))
+		respRequest, err := parseRESP(readBuffer)
+		if err != nil {
+			fmt.Println("Error parsing request")
+			os.Exit(0)
+		}
+
+		commands, length := extractCommandFromRESP(respRequest)
+
 		// Hardcoding the response for this stage (Parsing comes later).
-		conn.Write([]byte("+PONG\r\n"))
+		if commands[0] == "ping" {
+			conn.Write([]byte("+PONG\r\n"))
+		}
+
+		if commands[0] == "echo" {
+			arg := ""
+			if length >= 1 {
+				arg = commands[1]
+			}
+			conn.Write([]byte("+" + arg + "\r\n"))
+		}
+
 	}
+}
+
+func extractCommandFromRESP(resp RESP) ([]string, int) {
+	arr := resp.respData.Array
+
+	ret := make([]string, len(arr))
+
+	for i, subresp := range arr {
+		val := strings.ToLower(subresp.respData.String)
+		ret[i] = val
+	}
+
+	return ret, len(ret)
 }
