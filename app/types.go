@@ -5,13 +5,13 @@ import "time"
 // RESP Type signifier for comparison
 type RESPType byte
 
-// RESP Types
+// RESP Request Types
 var RESPTypes = struct {
-	Integer RESPType
-	String  RESPType
-	Bulk    RESPType
-	Array   RESPType
-	Error   RESPType
+	Integer RESPType // Integer requests. Start with ':'
+	String  RESPType // String requests. Start with '+'
+	Bulk    RESPType // Bulk String requests. Start with '$'
+	Array   RESPType // Array requests. Can contain other arrays as well. Start with '*'
+	Error   RESPType // Error requests. Start with '-'
 }{
 	Integer: ':',
 	String:  '+',
@@ -38,6 +38,7 @@ type RESP struct {
 
 // Value stored in the in-memory key-value store.
 type Record struct {
-	value string
-	expiresAt time.Time
+	value     string    // string value the key will correspond to
+	expiresAt time.Time // time at which the value will be inaccessible. (Using a passive delete)
+	timeBomb  bool      // will expire or not
 }

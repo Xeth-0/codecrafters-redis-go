@@ -51,8 +51,9 @@ func setResponse(commands []string) string {
 				os.Exit(0)
 			}
 
-			timeout := time.Duration(time.Duration(t).Milliseconds())
+			timeout := time.Duration(t) * time.Millisecond
 			record.expiresAt = time.Now().Add(time.Duration(timeout))
+			record.timeBomb = true
 		}
 	}
 
@@ -66,8 +67,12 @@ func getResponse(commands []string) string {
 	if !exists {
 		return ""
 	}
-	if val.expiresAt.Compare(time.Now()) == -1 { // expired
-		return "-1\r\n"
+	if val.timeBomb && val.expiresAt.Compare(time.Now()) == -1 { // expired
+		fmt.Println("Current Time:", time.Now())
+		fmt.Println("Expiry Time:", val.expiresAt)
+		return "$-1\r\n"
 	}
-	return fmt.Sprintf("$%d\r\n%s\r\n", len(val.value), val.value)
+	length := len(val.value)
+	value := val.value
+	return fmt.Sprintf("$%d\r\n%s\r\n", length, value)
 }

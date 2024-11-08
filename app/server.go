@@ -36,7 +36,7 @@ func handleConnection(conn net.Conn) {
 		readBuffer := make([]byte, 1024)
 
 		// Deadline to stop listening to read/write from the tcp connection
-		conn.SetDeadline(time.Now().Add(100 * time.Millisecond))
+		conn.SetDeadline(time.Now().Add(1000 * time.Millisecond))
 
 		// Read the request.
 		n, err := conn.Read(readBuffer)
@@ -60,6 +60,7 @@ func handleConnection(conn net.Conn) {
 		commands, _ := extractCommandFromRESP(respRequest)
 
 		response := constructResponse(commands)
-		conn.Write([]byte(response))
+		byteResponse := []byte(response)
+		conn.Write(byteResponse)
 	}
 }
