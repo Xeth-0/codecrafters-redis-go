@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"time"
 )
+
+// What it says it is.
+var keyValueStore = map[string]string{}
 
 func main() {
 	listener, err := net.Listen("tcp", "0.0.0.0:6379")
@@ -31,19 +33,19 @@ func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	for {
-		readBuffer := make([]byte, 128)
+		readBuffer := make([]byte, 1024)
 
 		// Deadline to stop listening to read/write from the tcp connection
 		conn.SetDeadline(time.Now().Add(100 * time.Millisecond))
 
 		// Read the request.
-		len, err := conn.Read(readBuffer)
+		n, err := conn.Read(readBuffer)
 		if err != nil { // nothing read or encountered an error.
 			return
 		}
 
 		// Cut off the empty bytes at the end
-		readBuffer = readBuffer[:len]
+		readBuffer = readBuffer[:n]
 
 		// Debugging incoming stream.
 		fmt.Println("Incoming bytes =>", readBuffer)
@@ -55,33 +57,34 @@ func handleConnection(conn net.Conn) {
 			os.Exit(0)
 		}
 
-		commands, length := extractCommandFromRESP(respRequest)
+		commands, _ := extractCommandFromRESP(respRequest)
 
-		// Hardcoding the response for this stage (Parsing comes later).
-		if commands[0] == "ping" {
-			conn.Write([]byte("+PONG\r\n"))
-		}
-
-		if commands[0] == "echo" {
-			arg := ""
-			if length >= 1 {
-				arg = commands[1]
-			}
-			conn.Write([]byte("+" + arg + "\r\n"))
-		}
-
+		response := constructResponse(commands)
+		conn.Write([]byte(response))
 	}
 }
 
-func extractCommandFromRESP(resp RESP) ([]string, int) {
-	arr := resp.respData.Array
-
-	ret := make([]string, len(arr))
-
-	for i, subresp := range arr {
-		val := strings.ToLower(subresp.respData.String)
-		ret[i] = val
+func constructResponse(commands []string) string {
+	for i := 0; i < len(commands); i += 2 {
+		switch commands[0] {
+		case "ping":
+			return "+PONG\r\n"
+		case "echo":
+			arg := ""
+			if len(commands) >= 1 {
+				arg = commands[i+1]
+			}
+			return fmt.Sprintf("+%s\r\n", arg)
+		case "set":
+			keyValueStore[commands[i+1]] = commands[i+2]
+			return "+OK\r\n"
+		case "get":
+			val, exists := keyValueStore[commands[i+1]]
+			if exists {
+				return fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)
+			}
+			return ""
+		}
 	}
-
-	return ret, len(ret)
+	return "-ERROR"
 }
