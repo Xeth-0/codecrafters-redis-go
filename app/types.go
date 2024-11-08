@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 // RESP Type signifier for comparison
 type RESPType byte
 
@@ -34,4 +36,8 @@ type RESP struct {
 	respData RESPData // The meat of the resp request (String/Int/Bulk/Array/Error)
 }
 
-
+// Value stored in the in-memory key-value store.
+type Record struct {
+	value string
+	expiresAt time.Time
+}

@@ -8,7 +8,7 @@ import (
 )
 
 // What it says it is.
-var keyValueStore = map[string]string{}
+var keyValueStore = map[string]Record{}
 
 func main() {
 	listener, err := net.Listen("tcp", "0.0.0.0:6379")
@@ -62,29 +62,4 @@ func handleConnection(conn net.Conn) {
 		response := constructResponse(commands)
 		conn.Write([]byte(response))
 	}
-}
-
-func constructResponse(commands []string) string {
-	for i := 0; i < len(commands); i += 2 {
-		switch commands[0] {
-		case "ping":
-			return "+PONG\r\n"
-		case "echo":
-			arg := ""
-			if len(commands) >= 1 {
-				arg = commands[i+1]
-			}
-			return fmt.Sprintf("+%s\r\n", arg)
-		case "set":
-			keyValueStore[commands[i+1]] = commands[i+2]
-			return "+OK\r\n"
-		case "get":
-			val, exists := keyValueStore[commands[i+1]]
-			if exists {
-				return fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)
-			}
-			return ""
-		}
-	}
-	return "-ERROR"
 }
