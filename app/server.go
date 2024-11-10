@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -10,15 +11,33 @@ import (
 // What it says it is.
 var keyValueStore = map[string]Record{}
 
-func main() {
-	listener, err := net.Listen("tcp", "0.0.0.0:6379")
+var RDB = redisRDB{}
 
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Not enough arguements provided. Using default values...")
+	} 
+	// Get the directory and filename for the rdb store.
+	dir := flag.CommandLine.String("dir", "", "rdb store directory")
+	dbFileName := flag.CommandLine.String("dbfilename", "", "rdb store filename")
+
+	flag.Parse()
+	
+
+	// Setup the listener on the port
+	listener, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
 	defer listener.Close()
 
+	// Setup the RDB
+	RDB = setupRDB(*dir, *dbFileName)
+	fmt.Println(RDB.config.dir)
+	// ...
+
+	// Listen for connections.
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

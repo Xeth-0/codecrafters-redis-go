@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Parsing of incoming and outgoing resp requests.
+// Parsing of incoming resp requests.
 
 func parseRESP(packet []byte) (RESP, error) {
 	if len(packet) == 0 { // no data in packet. return empty resp struct
@@ -45,9 +45,10 @@ func _parseRESP_Integer(respBytes []byte) (RESP, error) {
 
 	sign := 1
 	start := 0
-	if respBytes[0] == '-' {
+
+	if respBytes[0] == '-' { // Negative integer
 		sign = -1
-		start++
+		start++ // move past the sign
 	}
 
 	// Iterate till crlf (integer might be more than one digit)
@@ -69,13 +70,33 @@ func _parseRESP_Integer(respBytes []byte) (RESP, error) {
 }
 
 func _parseRESP_String(respBytes []byte) (RESP, error) {
-	// TODO
-	return RESP{}, fmt.Errorf("error parsing string resp: unexpected error") // should never hit this
+	crlf, err := findNextCLRF(respBytes)
+	if err != nil {
+		return RESP{}, err
+	}
+
+	resp := RESP{} // setup response
+
+	resp.respType = RESPTypes.String
+	resp.RawBytes = respBytes[:crlf+2]
+	resp.respData.String = string(respBytes[1:crlf])
+
+	return resp, nil
 }
 
 func _parseRESP_Error(respBytes []byte) (RESP, error) {
-	// TODO
-	return RESP{}, fmt.Errorf("error parsing error resp: unexpected error") // should never hit this
+	crlf, err := findNextCLRF(respBytes)
+	if err != nil {
+		return RESP{}, err
+	}
+
+	resp := RESP{} // setup response
+
+	resp.respType = RESPTypes.Error
+	resp.RawBytes = respBytes[:crlf+2]
+	resp.respData.String = string(respBytes[1:crlf])
+
+	return resp, nil
 }
 
 func _parseRESP_Array(respBytes []byte) (RESP, error) {
@@ -165,4 +186,13 @@ func extractCommandFromRESP(resp RESP) ([]string, int) {
 	}
 
 	return ret, len(ret)
+}
+
+func findNextCLRF(b []byte) (int, error) {
+	for clrf := 0; clrf < len(b); clrf++ {
+		if b[clrf] == '\r' && b[clrf+1] == '\n' { // Here it is
+			return clrf, nil
+		}
+	}
+	return -1, fmt.Errorf("no crlf found")
 }

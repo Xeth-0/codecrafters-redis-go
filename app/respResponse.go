@@ -12,28 +12,55 @@ func constructResponse(commands []string) string {
 	case "ping":
 		return pingResponse()
 	case "echo":
-		return echoResponse(commands)
+		return onEcho(commands)
 	case "set":
-		return setResponse(commands)
+		return onSet(commands)
 	case "get":
-		return getResponse(commands)
+		return onGet(commands)
+	case "config":
+		if len(commands) >= 2 && commands[1] == "get" {
+			return onConfig(commands)
+		}
 	}
 	return "-ERROR"
 }
 
 func pingResponse() string {
-	return "+PONG\r\n"
+	return respEncodeString("PONG")
 }
 
-func echoResponse(commands []string) string {
-	arg := ""
-	if len(commands) >= 1 {
-		arg = commands[1]
+func onConfig(commands []string) string {
+	response := ""
+	args := commands[2:]
+
+	count := 0
+	for _, arg := range args {
+		switch arg {
+		case "dir":
+			response += respEncodeBulkString("dir")
+			response += respEncodeBulkString(RDB.config.dir)
+			count += 2
+		case "dbfilename":
+			response += respEncodeBulkString("dbfilename")
+			response += respEncodeBulkString(RDB.config.dbFileName)
+			count += 2
+		}
 	}
-	return fmt.Sprintf("+%s\r\n", arg)
+	return fmt.Sprintf("*%d\r\n", count) + response
 }
 
-func setResponse(commands []string) string {
+func onEcho(commands []string) string {
+	arg := ""
+	if len(commands) >= 2 {
+		arg = commands[1]
+	} else {
+		return arg
+	}
+
+	return respEncodeString(arg)
+}
+
+func onSet(commands []string) string {
 	// Set up the record
 	record := Record{}
 
@@ -59,20 +86,17 @@ func setResponse(commands []string) string {
 
 	keyValueStore[key] = record
 
-	return "+OK\r\n"
+	return respEncodeString("OK")
 }
 
-func getResponse(commands []string) string {
+func onGet(commands []string) string {
 	val, exists := keyValueStore[commands[1]]
 	if !exists {
 		return ""
 	}
 	if val.timeBomb && val.expiresAt.Compare(time.Now()) == -1 { // expired
-		fmt.Println("Current Time:", time.Now())
-		fmt.Println("Expiry Time:", val.expiresAt)
 		return "$-1\r\n"
 	}
-	length := len(val.value)
-	value := val.value
-	return fmt.Sprintf("$%d\r\n%s\r\n", length, value)
+
+	return respEncodeBulkString(val.value)
 }
