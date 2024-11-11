@@ -49,8 +49,18 @@ func setupRDB(dir string, dbFileName string) redisRDB {
 	rdb.databaseStore = make(map[string]string)
 
 	// need to load in the rdb specified by the dirname and dir.
-	data := loadRDB(dir, dbFileName)
+	data := loadRdbData(dir, dbFileName)
 
+	if len(data) == 0 { // empty rdb
+		return rdb
+	}
+
+	// load the data from the rdb file.
+	rdb = parseRdbData(data, rdb)
+	return rdb
+}
+
+func parseRdbData(data []byte, rdb redisRDB) redisRDB {
 	// and now, for the looooooooong process of loading the bitch
 	index := 0
 
@@ -59,7 +69,7 @@ func setupRDB(dir string, dbFileName string) redisRDB {
 
 	// TODO: Separate each of these into their own function. Should be easy enough.
 	// Auxiliary Section: Reading them, not saving them for now
-	for data[index] == opCodeAux && len(data) > index {
+	for len(data) > index && data[index] == opCodeAux {
 		index++
 
 		key, keyLength, err := decodeNextString(data[index:])
@@ -251,14 +261,14 @@ func decodeSize(data []byte) (size string, sizeLength int, err error) {
 }
 
 // Loads the .rdb file from the given name and directory
-func loadRDB(dir string, dbFileName string) []byte {
-	fullPath := dir + "/" +dbFileName
+func loadRdbData(dir string, dbFileName string) []byte {
+	fullPath := dir + "/" + dbFileName
 	fmt.Println(fullPath)
-	data, _ := os.ReadFile(fullPath)
+	data, err := os.ReadFile(fullPath)
 	fmt.Println(data)
-	// if err != nil {
-	// 	fmt.Println("Error reading rdb file.")
-	// }
+	if err != nil {
+		fmt.Println("Error reading rdb file. Proceeding anyway")
+	}
 	fmt.Println(string(data))
 	return data
 }
