@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
+	"time"
 )
 
 // opCodes for section delimiters/identifiers in the .rdb file to be read.
@@ -46,10 +47,13 @@ func setupRDB(dir string, dbFileName string) redisRDB {
 	rdb := redisRDB{
 		config: rdbConfig,
 	}
-	rdb.databaseStore = make(map[string]string)
+	rdb.databaseStore = make(map[string]Record)
 
 	// need to load in the rdb specified by the dirname and dir.
 	data, exists := loadRDBFromFile(dir, dbFileName)
+	
+
+	fmt.Println(data)
 
 	if exists {
 		// load the data from the rdb file.
@@ -138,9 +142,26 @@ func decodeSizeEncoding(data []byte) (size string, sizeLength int, err error) {
 	return "", 0, fmt.Errorf("error decoding size encoding: no bloody clue what went wrong, come debug lil man")
 }
 
+func decodeExpiryTimestamp(data []byte) (timestamp time.Time, offset int, err error) {
+	switch data[0] {
+	case opCodeExpireTime: // next 4 bytes are unix timestamp (uint)
+		timeOffset := int64(binary.LittleEndian.Uint32(data[1:5]))
+		fmt.Println(timeOffset)
+		timeStamp := time.Unix(timeOffset, 0).UTC()
+		return timeStamp, 5, nil
+
+	case opCodeExpireTimeMs: // next 8 bytes are unix timestamp (ulong)
+		timeOffset := int64(binary.LittleEndian.Uint64(data[1:9]))
+		fmt.Println(timeOffset)
+		timeStamp := time.UnixMilli(timeOffset).UTC()
+		return timeStamp, 9, nil
+	}
+	return time.Time{}, 0, fmt.Errorf("error parsing timestamp: come debug homie")
+}
+
 // Loads the .rdb file from the given name and directory
 func loadRDBFromFile(dir string, dbFileName string) ([]byte, bool) {
-	data, err := os.ReadFile(dir + "/" + dbFileName)	
+	data, err := os.ReadFile(dir + "/" + dbFileName)
 	if err != nil {
 		fmt.Println("Error reading rdb file. Proceeding anyway")
 		return data, false
@@ -220,39 +241,42 @@ func _parseRDB_DatabaseInfo(data []byte, rdb redisRDB) (_ redisRDB, indexOffset 
 		index += indexOffset
 	}
 
-	// Database key value pair section. Not even parsing this, just skipping it for now.
-	for data[index] != opCodeEOF {
-		if data[index] == opCodeExpireTime {
-			index++
-			// TODO
-			index += 4
-		} else if data[index] == opCodeExpireTimeMs {
-			index++
-			// TODO
-			index += 8
-		} else {
-			break
-		}
-	}
-
 	return rdb, index
 }
 
+// "\x00\x05mykey\x05myval\x00\x04key2\x06value2\xfc\x85ch\x1c\x93\x01\x00\x00\x00\x04key3\x06value3\xff6\xcfJ\x01\xca@>o"
 // parses the key-value pairs stored.
 func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int) {
 	index := 0
 
-	for data[index] == 0x00 {
+	for data[index] == 0x00 || data[index] == 0xFC || data[index] == 0xFD { // 0xFC|0xFD => key with expiry, 0x00 => key with no expiry
+
+		timeStamp := time.Time{}
+		expiresFlag := false
+		if data[index] == opCodeExpireTime || data[index] == opCodeExpireTimeMs {
+			// handle the expiry
+			fmt.Println(data[index])
+			t, offset, err := decodeExpiryTimestamp(data[index:])
+			if err != nil {
+				fmt.Println("error parsing key-value pair: error parsing timestamp")
+				os.Exit(0)
+			}
+			
+			timeStamp = t
+			expiresFlag = true
+			index += offset
+		}
+		
 		index++
 		key, indexOffset, err := decodeStringEncoding(data[index:])
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(0)
 		}
-
+		
 		// fmt.Println("KEY: ", key)
 		index += indexOffset
-
+		
 		value, indexOffset, err := decodeStringEncoding(data[index:])
 		if err != nil {
 			fmt.Println(err)
@@ -261,8 +285,19 @@ func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int)
 
 		// fmt.Println("VALUE: ", value)
 		index += indexOffset
+		
+		record := Record{
+			value: value,
+		}
+		
+		if expiresFlag {
+			record.expiresAt = timeStamp
+			record.timeBomb = true
+		}
+		
+		fmt.Println("KEY: ", key, "VALUE: ", value, "EXPIRY: ", timeStamp)
 
-		rdb.databaseStore[key] = value
+		rdb.databaseStore[key] = record
 	}
 
 	return rdb, index

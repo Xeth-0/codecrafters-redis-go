@@ -55,7 +55,7 @@ type redisRDB struct {
 	config    RDBConfig
 	// rdb       []byte
 	// auxFields map[string]string // Auxiliary fields (string just because)
-	databaseStore map[string]string
+	databaseStore map[string]Record
 
 	//...
 }

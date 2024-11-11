@@ -2,3 +2,4 @@
 **/scratch.*
 **/dump.rdb
 app/dump.rdb
+**/dump/*

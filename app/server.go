@@ -18,7 +18,7 @@ func main() {
 		fmt.Println("Not enough arguements provided. Using default values...")
 	}
 	// Get the directory and filename for the rdb store.
-	dirFlag := flag.String("dir", "", "rdb store directory")
+	dirFlag := flag.String("dir", "dump", "rdb store directory")
 	dbFileNameFlag := flag.String("dbfilename", "dump.rdb", "rdb store filename")
 
 	flag.Parse()
@@ -55,10 +55,7 @@ func main() {
 
 func loadRDB(rdb redisRDB) {
 	for k := range rdb.databaseStore {
-		record := Record{
-			value: rdb.databaseStore[k],
-		}
-		keyValueStore[k] = record
+		keyValueStore[k] = rdb.databaseStore[k]
 	}
 }
 
@@ -94,6 +91,8 @@ func handleConnection(conn net.Conn) {
 
 		response := constructResponse(commands)
 		byteResponse := []byte(response)
+
+		fmt.Println("RESPONSE: ", byteResponse)
 		conn.Write(byteResponse)
 	}
 }
