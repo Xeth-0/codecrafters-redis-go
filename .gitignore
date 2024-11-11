@@ -1,2 +1,4 @@
 **/.vscode/
 **/scratch.*
+**/dump.rdb
+app/dump.rdb

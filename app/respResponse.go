@@ -10,7 +10,7 @@ import (
 func constructResponse(commands []string) string {
 	switch commands[0] {
 	case "ping":
-		return pingResponse()
+		return onPing()
 	case "echo":
 		return onEcho(commands)
 	case "set":
@@ -21,12 +21,35 @@ func constructResponse(commands []string) string {
 		if len(commands) >= 2 && commands[1] == "get" {
 			return onConfig(commands)
 		}
+	case "keys":
+		return onKeys(commands)
 	}
 	return "-ERROR"
 }
 
-func pingResponse() string {
+func onPing() string {
 	return respEncodeString("PONG")
+}
+
+func onKeys(commands []string) string{
+	args := commands [1:]
+	
+	if len(args) < 1{
+		fmt.Println("Not enough args in command")
+		os.Exit(0)
+	}
+	
+	if args[0] == "*"{
+		// return all keys
+		keys := make([]string, 0, len(RDB.databaseStore))
+		for k := range RDB.databaseStore {
+			keys = append(keys, k)
+		}
+		
+		return respEncodeStringArray(keys)
+	} 
+
+	return ""
 }
 
 func onConfig(commands []string) string {

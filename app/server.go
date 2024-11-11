@@ -18,12 +18,14 @@ func main() {
 		fmt.Println("Not enough arguements provided. Using default values...")
 	} 
 	// Get the directory and filename for the rdb store.
-	dir := flag.CommandLine.String("dir", "", "rdb store directory")
-	dbFileName := flag.CommandLine.String("dbfilename", "", "rdb store filename")
+	dirFlag := flag.String("dir", "", "rdb store directory")
+	dbFileNameFlag := flag.String("dbfilename", "dump.rdb", "rdb store filename")
 
 	flag.Parse()
-	
 
+	dir := *dirFlag
+	dbFileName := *dbFileNameFlag
+	
 	// Setup the listener on the port
 	listener, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {
@@ -32,8 +34,10 @@ func main() {
 	}
 	defer listener.Close()
 
+	fmt.Println("DIR: ", dir, "DBFILENAME: ", dbFileName)
+
 	// Setup the RDB
-	RDB = setupRDB(*dir, *dbFileName)
+	RDB = setupRDB(dir, dbFileName)
 	fmt.Println(RDB.config.dir)
 	// ...
 

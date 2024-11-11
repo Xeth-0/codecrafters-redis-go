@@ -42,3 +42,20 @@ type Record struct {
 	expiresAt time.Time // time at which the value will be inaccessible. (Using a passive delete)
 	timeBomb  bool      // will expire or not
 }
+
+// Config values for the RDB used.
+type RDBConfig struct {
+	dir        string // directory of the rdb file
+	dbFileName string // filename for the .rdb file
+	// ...
+}
+
+// RDB in-mem representation.
+type redisRDB struct {
+	config    RDBConfig
+	// rdb       []byte
+	// auxFields map[string]string // Auxiliary fields (string just because)
+	databaseStore map[string]string
+
+	//...
+}
