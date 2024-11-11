@@ -59,7 +59,7 @@ func setupRDB(dir string, dbFileName string) redisRDB {
 
 	// TODO: Separate each of these into their own function. Should be easy enough.
 	// Auxiliary Section: Reading them, not saving them for now
-	for data[index] == opCodeAux {
+	for data[index] == opCodeAux && len(data) > index {
 		index++
 
 		key, keyLength, err := decodeNextString(data[index:])
