@@ -16,7 +16,7 @@ var RDB = redisRDB{}
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Not enough arguements provided. Using default values...")
-	} 
+	}
 	// Get the directory and filename for the rdb store.
 	dirFlag := flag.String("dir", "", "rdb store directory")
 	dbFileNameFlag := flag.String("dbfilename", "dump.rdb", "rdb store filename")
@@ -25,7 +25,7 @@ func main() {
 
 	dir := *dirFlag
 	dbFileName := *dbFileNameFlag
-	
+
 	// Setup the listener on the port
 	listener, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {
@@ -38,8 +38,9 @@ func main() {
 
 	// Setup the RDB
 	RDB = setupRDB(dir, dbFileName)
-	fmt.Println(RDB.config.dir)
-	// ...
+
+	// Load RDB into in-memory
+	loadRDB(RDB)
 
 	// Listen for connections.
 	for {
@@ -49,6 +50,15 @@ func main() {
 		}
 
 		go handleConnection(conn)
+	}
+}
+
+func loadRDB(rdb redisRDB) {
+	for k := range rdb.databaseStore {
+		record := Record{
+			value: rdb.databaseStore[k],
+		}
+		keyValueStore[k] = record
 	}
 }
 
