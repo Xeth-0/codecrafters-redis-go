@@ -49,17 +49,17 @@ func setupRDB(dir string, dbFileName string) redisRDB {
 	rdb.databaseStore = make(map[string]string)
 
 	// need to load in the rdb specified by the dirname and dir.
-	data := loadRdbData(dir, dbFileName)
+	data, exists := loadRDBFromFile(dir, dbFileName)
 
-	if len(data) == 0 { // empty rdb
-		return rdb
+	if exists {
+		// load the data from the rdb file.
+		rdb = parseRdbData(data, rdb)
 	}
 
-	// load the data from the rdb file.
-	rdb = parseRdbData(data, rdb)
 	return rdb
 }
 
+// parses the rdb data in bits and extracts useful information into the redisRDB struct.
 func parseRdbData(data []byte, rdb redisRDB) redisRDB {
 	// and now, for the looooooooong process of loading the bitch
 	index := 0
@@ -67,115 +67,22 @@ func parseRdbData(data []byte, rdb redisRDB) redisRDB {
 	// skip the header (Magic String + Version Number => "REDIS0012")
 	index += 9
 
-	// TODO: Separate each of these into their own function. Should be easy enough.
-	// Auxiliary Section: Reading them, not saving them for now
-	for len(data) > index && data[index] == opCodeAux {
-		index++
+	rdb, indexOffset := _parseRDB_MetaData(data[index:], rdb)
+	index += indexOffset
 
-		key, keyLength, err := decodeNextString(data[index:])
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
-		}
-
-		index += keyLength
-
-		value, valueLength, err := decodeNextString(data[index:])
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
-		}
-
-		index += valueLength
-
-		fmt.Println("key value found: ", key, value) // Doing nothing with it for now
-	}
-
-	// Database Index. Not supporting more than one
-	if data[index] == opCodeSelectDB {
-		index++
-
-		val, valLength, err := decodeSize(data[index:])
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
-		}
-		index += valLength
-
-		// again, doing nothing with this
-		fmt.Println("Database Index: ", val)
-	}
-
-	// Resize section: No idea agian.
-	// TODO: Actually implement this?
-	if data[index] == opCodeResizeDB {
-		index++
-
-		val, indexOffset, err := decodeSize(data[index:])
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
-		}
-
-		fmt.Println("RESIZEDB VAL: ", val)
-		index += indexOffset
-
-		val, indexOffset, err = decodeSize(data[index:])
-		fmt.Println("RESIZEDB VAL: ", val)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
-		}
-
-		index += indexOffset
-	}
-
-	// Database content. Not even parsing this, just skipping it for now.
-	for data[index] != opCodeEOF {
-		if data[index] == opCodeExpireTime {
-			index++
-			// TODO
-			index += 4
-		} else if data[index] == opCodeExpireTimeMs {
-			index++
-			// TODO
-			index += 8
-		} else {
-			break
-		}
-	}
+	rdb, indexOffset = _parseRDB_DatabaseInfo(data[index:], rdb)
+	index += indexOffset
 
 	// Finally. Once all that is gone, what remains is key value pairs
-	for data[index] == 0x00 {
-		index++
-		key, indexOffset, err := decodeNextString(data[index:])
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
-		}
+	rdb, indexOffset = _parseRDB_KeyValue(data[index:], rdb)
+	index += indexOffset
 
-		fmt.Println("KEY: ", key)
-		index += indexOffset
-
-		value, indexOffset, err := decodeNextString(data[index:])
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
-		}
-
-		fmt.Println("VALUE: ", value)
-		index += indexOffset
-
-		rdb.databaseStore[key] = value
-	}
-
-	//
 	return rdb
 }
 
 // Decodes the next string from string encoded bits,
 // returns it's value, it's length(from the bytes for offset by the caller), and error if there is one.
-func decodeNextString(data []byte) (str string, strLength int, err error) {
+func decodeStringEncoding(data []byte) (str string, strLength int, err error) {
 	// Parse for strings
 	// Strings have max length of 13 (0x0D). Anything with the first byte less than that is a string
 	if data[0] <= stringEncoding_string {
@@ -202,37 +109,8 @@ func decodeNextString(data []byte) (str string, strLength int, err error) {
 	return "", 0, fmt.Errorf("error decoding rdb string: tf did you provide")
 }
 
-/*
-If the first two bits are 0b00:
-
-	The size is the remaining 6 bits of the byte.
-	In this example, the size is 10:
-	0A
-	00001010
-
-If the first two bits are 0b01:
-
-	The size is the next 14 bits
-	(remaining 6 bits in the first byte, combined with the next byte),
-	in big-endian (read left-to-right).
-	In this example, the size is 700:
-		42 BC
-		01000010 10111100
-
-If the first two bits are 0b10:
-
-	Ignore the remaining 6 bits of the first byte.
-	The size is the next 4 bytes, in big-endian (read left-to-right).
-	In this example, the size is 17000:
-		80 00 00 42 68
-		10000000 00000000 00000000 01000010 01101000
-
-If the first two bits are 0b11:
-
-	The remaining 6 bits specify a type of string encoding.
-	See string encoding section.
-*/
-func decodeSize(data []byte) (size string, sizeLength int, err error) {
+// decodes size-encoded bits
+func decodeSizeEncoding(data []byte) (size string, sizeLength int, err error) {
 	firstTwoBits := data[0] >> 6 // data[0] is one byte. need the first two BITS
 
 	switch firstTwoBits {
@@ -252,7 +130,7 @@ func decodeSize(data []byte) (size string, sizeLength int, err error) {
 		return string(val), 3, nil
 
 	case sizeEncoding_stringEncoding:
-		return decodeNextString(data)
+		return decodeStringEncoding(data)
 
 	}
 
@@ -261,14 +139,131 @@ func decodeSize(data []byte) (size string, sizeLength int, err error) {
 }
 
 // Loads the .rdb file from the given name and directory
-func loadRdbData(dir string, dbFileName string) []byte {
-	fullPath := dir + "/" + dbFileName
-	fmt.Println(fullPath)
-	data, err := os.ReadFile(fullPath)
-	fmt.Println(data)
+func loadRDBFromFile(dir string, dbFileName string) ([]byte, bool) {
+	data, err := os.ReadFile(dir + "/" + dbFileName)	
 	if err != nil {
 		fmt.Println("Error reading rdb file. Proceeding anyway")
+		return data, false
 	}
-	fmt.Println(string(data))
-	return data
+
+	return data, len(data) > 0
+}
+
+// Parses the metadata section of the rdb
+func _parseRDB_MetaData(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int) {
+	index := 0
+	// Auxiliary Section: Reading them, not saving them for now
+	for len(data) > index && data[index] == opCodeAux {
+		index++ // skip the opcode
+
+		key, keyLength, err := decodeStringEncoding(data[index:])
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
+
+		index += keyLength // move past the key
+
+		value, valueLength, err := decodeStringEncoding(data[index:])
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
+
+		index += valueLength // move past the value
+
+		fmt.Println("key value found: ", key, value) // Doing nothing with it for now
+	}
+
+	return rdb, index
+}
+
+// TODO: IMPLEMENT THIS (WHEN REQUIRED lol)
+// Long one, has multiple subsections. Doing nothing with all of them, just "parsing" and skipping past them.
+func _parseRDB_DatabaseInfo(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int) {
+	index := 0
+
+	// Database selector section. Not supporting more than one, so not doing anything with it rn.
+	if data[index] == opCodeSelectDB {
+		index++
+
+		_, valLength, err := decodeSizeEncoding(data[index:])
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
+		index += valLength
+
+		// fmt.Println("Database Index: ", val)
+	}
+
+	// Resize subsection: No idea agian.
+	if data[index] == opCodeResizeDB {
+		index++
+
+		_, indexOffset, err := decodeSizeEncoding(data[index:])
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
+
+		// fmt.Println("RESIZEDB VAL: ", val)
+		index += indexOffset
+
+		_, indexOffset, err = decodeSizeEncoding(data[index:])
+		// fmt.Println("RESIZEDB VAL: ", val)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
+
+		index += indexOffset
+	}
+
+	// Database key value pair section. Not even parsing this, just skipping it for now.
+	for data[index] != opCodeEOF {
+		if data[index] == opCodeExpireTime {
+			index++
+			// TODO
+			index += 4
+		} else if data[index] == opCodeExpireTimeMs {
+			index++
+			// TODO
+			index += 8
+		} else {
+			break
+		}
+	}
+
+	return rdb, index
+}
+
+// parses the key-value pairs stored.
+func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int) {
+	index := 0
+
+	for data[index] == 0x00 {
+		index++
+		key, indexOffset, err := decodeStringEncoding(data[index:])
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
+
+		// fmt.Println("KEY: ", key)
+		index += indexOffset
+
+		value, indexOffset, err := decodeStringEncoding(data[index:])
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(0)
+		}
+
+		// fmt.Println("VALUE: ", value)
+		index += indexOffset
+
+		rdb.databaseStore[key] = value
+	}
+
+	return rdb, index
 }
