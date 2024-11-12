@@ -31,7 +31,6 @@ type RESPData struct {
 type RESP struct {
 	respType RESPType // Type of data in the resp (String/Int/Bulk/Array/Error)
 	RawBytes []byte   // The raw data read from the client (array of bytes)
-	Data     []byte   // Request excluding CRLF and Type // TODO: REMOVE THIS FIELD
 	Length   int      // Length of the raw resp
 	respData RESPData // The meat of the resp request (String/Int/Bulk/Array/Error)
 }
@@ -39,23 +38,19 @@ type RESP struct {
 // Value stored in the in-memory key-value store.
 type Record struct {
 	value     string    // string value the key will correspond to
+	expires   bool      // will expire or not
 	expiresAt time.Time // time at which the value will be inaccessible. (Using a passive delete)
-	timeBomb  bool      // will expire or not
 }
 
 // Config values for the RDB used.
 type RDBConfig struct {
 	dir        string // directory of the rdb file
 	dbFileName string // filename for the .rdb file
-	// ...
 }
 
 // RDB in-mem representation.
 type redisRDB struct {
-	config    RDBConfig
-	// rdb       []byte
+	config        RDBConfig
+	databaseStore map[string]Record // stores the key-value pairs
 	// auxFields map[string]string // Auxiliary fields (string just because)
-	databaseStore map[string]Record
-
-	//...
 }

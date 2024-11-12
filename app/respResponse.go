@@ -31,23 +31,23 @@ func onPing() string {
 	return respEncodeString("PONG")
 }
 
-func onKeys(commands []string) string{
-	args := commands [1:]
-	
-	if len(args) < 1{
+func onKeys(commands []string) string {
+	args := commands[1:]
+
+	if len(args) < 1 {
 		fmt.Println("Not enough args in command")
 		os.Exit(0)
 	}
-	
-	if args[0] == "*"{
+
+	if args[0] == "*" {
 		// return all keys
 		keys := make([]string, 0, len(RDB.databaseStore))
 		for k := range RDB.databaseStore {
 			keys = append(keys, k)
 		}
-		
+
 		return respEncodeStringArray(keys)
-	} 
+	}
 
 	return ""
 }
@@ -103,7 +103,7 @@ func onSet(commands []string) string {
 
 			timeout := time.Duration(t) * time.Millisecond
 			record.expiresAt = time.Now().Add(time.Duration(timeout))
-			record.timeBomb = true
+			record.expires = true
 		}
 	}
 
@@ -117,7 +117,7 @@ func onGet(commands []string) string {
 	if !exists {
 		return ""
 	}
-	if val.timeBomb && val.expiresAt.Compare(time.Now()) == -1 { // expired
+	if val.expires && val.expiresAt.Compare(time.Now()) == -1 { // expired
 		return "$-1\r\n"
 	}
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 )
 
 // What it says it is.
@@ -39,7 +38,7 @@ func main() {
 	// Setup the RDB
 	RDB = setupRDB(dir, dbFileName)
 
-	// Load RDB into in-memory
+	// Load RDB into in-memory store
 	loadRDB(RDB)
 
 	// Listen for connections.
@@ -53,6 +52,7 @@ func main() {
 	}
 }
 
+// Loads the key-value pairs in the rdb to the in memory store. should be stored in the rdb instead but i'm lazy
 func loadRDB(rdb redisRDB) {
 	for k := range rdb.databaseStore {
 		keyValueStore[k] = rdb.databaseStore[k]
@@ -65,22 +65,16 @@ func handleConnection(conn net.Conn) {
 	for {
 		readBuffer := make([]byte, 1024)
 
-		// Deadline to stop listening to read/write from the tcp connection
-		conn.SetDeadline(time.Now().Add(1000 * time.Millisecond))
-
-		// Read the request.
-		n, err := conn.Read(readBuffer)
-		if err != nil { // nothing read or encountered an error.
+		n, err := conn.Read(readBuffer) // Read the request.
+		if err != nil {
 			return
 		}
 
-		// Cut off the empty bytes at the end
-		readBuffer = readBuffer[:n]
+		readBuffer = readBuffer[:n] // Cut off the empty bytes at the end
 
-		// Debugging incoming stream.
-		fmt.Println("Incoming bytes =>", readBuffer)
+		fmt.Println("--Incoming bytes => ", readBuffer)
 
-		// fmt.Println("Incoming bytes =>", string(bytesRead))
+		// parse the resp request into a struct for easier manipulation
 		respRequest, err := parseRESP(readBuffer)
 		if err != nil {
 			fmt.Println("Error parsing request")
@@ -88,11 +82,11 @@ func handleConnection(conn net.Conn) {
 		}
 
 		commands, _ := extractCommandFromRESP(respRequest)
-
 		response := constructResponse(commands)
 		byteResponse := []byte(response)
 
-		fmt.Println("RESPONSE: ", byteResponse)
+		fmt.Println("--Outgoing bytes =>  ", byteResponse)
+
 		conn.Write(byteResponse)
 	}
 }

@@ -7,33 +7,27 @@ import (
 	"strings"
 )
 
-// Parsing of incoming resp requests.
-
-func parseRESP(packet []byte) (RESP, error) {
-	if len(packet) == 0 { // no data in packet. return empty resp struct
+// Parse incoming resp request.
+func parseRESP(respBytes []byte) (RESP, error) {
+	if len(respBytes) == 0 { // no data in packet. return empty resp struct
 		return RESP{}, fmt.Errorf("error parsing RESP Request: No data in packet")
 	}
 
-	resp := RESP{} // is the return value
 	// Grab the type from the first byte in the packet (it always starts with the type)
-	resp.respType = RESPType(packet[0])
+	respType := RESPType(respBytes[0])
 
-	// TODO:  Going to assume we get the right type for now. HANDLE THIS LATER
-
-	resp.RawBytes = packet
-
-	// Parse the request
-	switch resp.respType {
+	// Parse the request baesd on the type
+	switch respType {
 	case RESPTypes.Integer: // Signed/Unsigned ints
-		return _parseRESP_Integer(resp.RawBytes)
+		return _parseRESP_Integer(respBytes)
 	case RESPTypes.Bulk: // Bulk strings, contain their length with the request
-		return _parseRESP_Bulk(resp.RawBytes)
+		return _parseRESP_Bulk(respBytes)
 	case RESPTypes.String: // Plain strings
-		return _parseRESP_String(resp.RawBytes)
-	case RESPTypes.Error: // Error? not sure when this would happen
-		return _parseRESP_Error(resp.RawBytes)
+		return _parseRESP_String(respBytes)
+	case RESPTypes.Error: // Error
+		return _parseRESP_Error(respBytes)
 	case RESPTypes.Array: // Starting point for most commands. They are sent here as ARRAY resp commands.
-		return _parseRESP_Array(resp.RawBytes)
+		return _parseRESP_Array(respBytes)
 	}
 
 	return RESP{}, fmt.Errorf("error parsing RESP Request: IDK")
@@ -101,11 +95,10 @@ func _parseRESP_Error(respBytes []byte) (RESP, error) {
 
 func _parseRESP_Array(respBytes []byte) (RESP, error) {
 	// Determine the array length from the request.
-	clrf := 1 // find the clrf
-	for ; clrf < len(respBytes); clrf++ {
-		if respBytes[clrf] == '\r' && respBytes[clrf+1] == '\n' { // Here it is
-			break
-		}
+	clrf, err := findNextCLRF(respBytes)
+	if err != nil {
+		fmt.Println("error parsing array: CLRF for length identifier not found")
+		return RESP{}, err
 	}
 
 	// Parse it to extract the array length
@@ -114,7 +107,7 @@ func _parseRESP_Array(respBytes []byte) (RESP, error) {
 		return RESP{}, fmt.Errorf("error parsing array: cannot parse the length provided")
 	}
 
-	// Construct the response. Yes this is a bit ahead of time.
+	// Construct the response.
 	resp := RESP{}
 	resp.Length = arrayLength
 	resp.respType = RESPTypes.Array
@@ -145,14 +138,13 @@ func _parseRESP_Array(respBytes []byte) (RESP, error) {
 
 func _parseRESP_Bulk(respBytes []byte) (RESP, error) {
 	// Extract the Bulk String length
-	p := 1
-	for ; p < len(respBytes); p++ {
-		if respBytes[p] == '\r' && respBytes[p+1] == '\n' {
-			break
-		}
+	clrf, err := findNextCLRF(respBytes)
+	if err != nil {
+		fmt.Println("error parsing bulk string: CLRF after string length not found")
+		return RESP{}, err
 	}
 
-	stringLength, err := strconv.Atoi(string(respBytes[1:p]))
+	stringLength, err := strconv.Atoi(string(respBytes[1:clrf]))
 	if err != nil {
 		return RESP{}, fmt.Errorf("error parsing bulk string resp: cannot parse the length provided")
 	}
@@ -163,7 +155,7 @@ func _parseRESP_Bulk(respBytes []byte) (RESP, error) {
 	}
 
 	// Start parsing the actual string.
-	stringStart := p + 2
+	stringStart := clrf + 2
 
 	resp := RESP{}
 	resp.respType = RESPTypes.Bulk

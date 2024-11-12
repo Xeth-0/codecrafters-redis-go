@@ -51,20 +51,21 @@ func setupRDB(dir string, dbFileName string) redisRDB {
 
 	// need to load in the rdb specified by the dirname and dir.
 	data, exists := loadRDBFromFile(dir, dbFileName)
-	
-
-	fmt.Println(data)
 
 	if exists {
 		// load the data from the rdb file.
-		rdb = parseRdbData(data, rdb)
+		rdb = parseRDB(data, rdb)
 	}
 
 	return rdb
 }
 
 // parses the rdb data in bits and extracts useful information into the redisRDB struct.
-func parseRdbData(data []byte, rdb redisRDB) redisRDB {
+func parseRDB(data []byte, rdb redisRDB) redisRDB {
+	if len(data) < 9 {
+		return rdb
+	}
+
 	// and now, for the looooooooong process of loading the bitch
 	index := 0
 
@@ -99,12 +100,15 @@ func decodeStringEncoding(data []byte) (str string, strLength int, err error) {
 	switch data[0] {
 	case stringEncoding_int8:
 		return string(data[1]), 2, nil // 8bit int is one byte
+
 	case stringEncoding_int16:
 		val := binary.LittleEndian.Uint16(data[1:3])
 		return string(val), 3, nil
+
 	case stringEncoding_int32:
 		val := binary.LittleEndian.Uint32(data[1:5])
 		return string(val), 5, nil
+
 	case stringEncoding_int64:
 		return "", 0, fmt.Errorf("64 bit int not supported")
 	}
@@ -113,12 +117,11 @@ func decodeStringEncoding(data []byte) (str string, strLength int, err error) {
 	return "", 0, fmt.Errorf("error decoding rdb string: tf did you provide")
 }
 
-// decodes size-encoded bits
-func decodeSizeEncoding(data []byte) (size string, sizeLength int, err error) {
+// Decodes size-encoded bits. Returns the decoded value, index offset, error(if exists).
+func decodeSizeEncoding(data []byte) (size string, indexOffset int, err error) {
 	firstTwoBits := data[0] >> 6 // data[0] is one byte. need the first two BITS
 
 	switch firstTwoBits {
-
 	case sizeEncoding_6bits: // 6bit length, just need the remaining bits from the first byte.
 		val := int(data[0] & 0x3F) // masking out the first two
 		return string(val), 1, nil
@@ -142,21 +145,22 @@ func decodeSizeEncoding(data []byte) (size string, sizeLength int, err error) {
 	return "", 0, fmt.Errorf("error decoding size encoding: no bloody clue what went wrong, come debug lil man")
 }
 
-func decodeExpiryTimestamp(data []byte) (timestamp time.Time, offset int, err error) {
+// Decodes Expiry timestamp from ms or s. Returns the decoded value, index offset, error(if exists).
+func decodeExpiryTimestamp(data []byte) (timestamp time.Time, indexOffset int, err error) {
 	switch data[0] {
 	case opCodeExpireTime: // next 4 bytes are unix timestamp (uint)
-		timeOffset := int64(binary.LittleEndian.Uint32(data[1:5]))
-		fmt.Println(timeOffset)
-		timeStamp := time.Unix(timeOffset, 0).UTC()
+		rawTime := int64(binary.LittleEndian.Uint32(data[1:5]))
+		timeStamp := time.Unix(rawTime, 0).UTC()
 		return timeStamp, 5, nil
 
 	case opCodeExpireTimeMs: // next 8 bytes are unix timestamp (ulong)
-		timeOffset := int64(binary.LittleEndian.Uint64(data[1:9]))
-		fmt.Println(timeOffset)
-		timeStamp := time.UnixMilli(timeOffset).UTC()
+		rawTime := int64(binary.LittleEndian.Uint64(data[1:9]))
+		timeStamp := time.UnixMilli(rawTime).UTC()
 		return timeStamp, 9, nil
+
+	default: // not a timestamp
+		return time.Time{}, 0, fmt.Errorf("error decoding timestamp: provided bytes do not describe a timestamp (in s or ms)")
 	}
-	return time.Time{}, 0, fmt.Errorf("error parsing timestamp: come debug homie")
 }
 
 // Loads the .rdb file from the given name and directory
@@ -167,7 +171,8 @@ func loadRDBFromFile(dir string, dbFileName string) ([]byte, bool) {
 		return data, false
 	}
 
-	return data, len(data) > 0
+	hasData := len(data) > 0
+	return data, hasData
 }
 
 // Parses the metadata section of the rdb
@@ -177,21 +182,19 @@ func _parseRDB_MetaData(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int)
 	for len(data) > index && data[index] == opCodeAux {
 		index++ // skip the opcode
 
-		key, keyLength, err := decodeStringEncoding(data[index:])
+		key, offset, err := decodeStringEncoding(data[index:])
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(0)
 		}
+		index += offset // move past the key
 
-		index += keyLength // move past the key
-
-		value, valueLength, err := decodeStringEncoding(data[index:])
+		value, offset, err := decodeStringEncoding(data[index:])
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(0)
 		}
-
-		index += valueLength // move past the value
+		index += offset // move past the value
 
 		fmt.Println("key value found: ", key, value) // Doing nothing with it for now
 	}
@@ -240,43 +243,40 @@ func _parseRDB_DatabaseInfo(data []byte, rdb redisRDB) (_ redisRDB, indexOffset 
 
 		index += indexOffset
 	}
-
 	return rdb, index
 }
 
-// "\x00\x05mykey\x05myval\x00\x04key2\x06value2\xfc\x85ch\x1c\x93\x01\x00\x00\x00\x04key3\x06value3\xff6\xcfJ\x01\xca@>o"
 // parses the key-value pairs stored.
 func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int) {
 	index := 0
 
-	for data[index] == 0x00 || data[index] == 0xFC || data[index] == 0xFD { // 0xFC|0xFD => key with expiry, 0x00 => key with no expiry
-
+	for data[index] == 0x00 || data[index] == opCodeExpireTime || data[index] == opCodeExpireTimeMs {
 		timeStamp := time.Time{}
 		expiresFlag := false
-		if data[index] == opCodeExpireTime || data[index] == opCodeExpireTimeMs {
-			// handle the expiry
+
+		if data[index] == opCodeExpireTime || data[index] == opCodeExpireTimeMs { // handle the expiry timestamp
 			fmt.Println(data[index])
 			t, offset, err := decodeExpiryTimestamp(data[index:])
 			if err != nil {
 				fmt.Println("error parsing key-value pair: error parsing timestamp")
 				os.Exit(0)
 			}
-			
+
 			timeStamp = t
 			expiresFlag = true
 			index += offset
 		}
-		
+
 		index++
 		key, indexOffset, err := decodeStringEncoding(data[index:])
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(0)
 		}
-		
+
 		// fmt.Println("KEY: ", key)
 		index += indexOffset
-		
+
 		value, indexOffset, err := decodeStringEncoding(data[index:])
 		if err != nil {
 			fmt.Println(err)
@@ -285,16 +285,16 @@ func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int)
 
 		// fmt.Println("VALUE: ", value)
 		index += indexOffset
-		
+
 		record := Record{
 			value: value,
 		}
-		
+
 		if expiresFlag {
 			record.expiresAt = timeStamp
-			record.timeBomb = true
+			record.expires = true
 		}
-		
+
 		fmt.Println("KEY: ", key, "VALUE: ", value, "EXPIRY: ", timeStamp)
 
 		rdb.databaseStore[key] = record
