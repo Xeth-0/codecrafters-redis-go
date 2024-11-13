@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 var RDB = redisRDB{}
@@ -28,13 +29,26 @@ func main() {
 	port := *portFlag
 	replicaOf := *replicaOfFlag
 
-	if replicaOf != "master" {
+	fmt.Println(replicaOf)
+
+	if replicaOf != "master" { // is a replica
 		CONFIG.isSlave = true
-		CONFIG.master = replicaOf
+
+		r := strings.Split(replicaOf, " ")
+		if len(r) < 2 {
+			fmt.Println("invalid replica flag. try agian")
+			os.Exit(0)
+		}
+
+		CONFIG.masterHost = r[0]
+		CONFIG.masterPort = r[1]
+		// call the replica thingy
+
+		sendHandshake()
 	} else {
 		// set the replication ID and offset
-		CONFIG.replicationID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
-		CONFIG.replicationOffset = 0
+		CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+		CONFIG.masterReplOffset = 0
 	}
 
 	CONFIG.port = port
@@ -42,6 +56,18 @@ func main() {
 	CONFIG.rdbDir = dir
 
 	startServer()
+}
+
+func sendHandshake() {
+	address := fmt.Sprintf("%s:%s", CONFIG.masterHost, CONFIG.masterPort)
+	m, err := net.Dial("tcp", address)
+	if err != nil {
+		fmt.Println("error sending handshake to master: ", err)
+		os.Exit(0)
+	}
+	req := make([]string, 1)
+	req[0] = "PING"
+	m.Write([]byte(respEncodeStringArray(req)))
 }
 
 // Setup the tcp listener on the port specified

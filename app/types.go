@@ -58,10 +58,11 @@ type redisRDB struct {
 }
 
 type redisConfig struct {
-	isSlave           bool
-	master            string // info for the master if isSlave
-	replicationID     string // info to pass to slaves if not isSlave
-	replicationOffset int
+	isSlave          bool
+	masterHost       string // info for the master if isSlave
+	masterPort       string
+	masterReplID     string // info to pass to slaves if not isSlave
+	masterReplOffset int
 
 	info map[string]map[string]any // nothing for now
 
