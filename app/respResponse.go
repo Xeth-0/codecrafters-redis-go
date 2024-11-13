@@ -9,6 +9,7 @@ import (
 
 func constructResponse(commands []string) string {
 	switch commands[0] {
+	
 	case "ping":
 		return onPing()
 	case "echo":
@@ -19,12 +20,25 @@ func constructResponse(commands []string) string {
 		return onGet(commands)
 	case "config":
 		if len(commands) >= 2 && commands[1] == "get" {
-			return onConfig(commands)
+			return onConfigGet(commands)
 		}
 	case "keys":
 		return onKeys(commands)
+	case "command":
+		return onCommand(commands)
+
 	}
 	return "-ERROR"
+}
+
+func onCommand(commands []string) string {
+	args := commands[1:]
+
+	if args[0] == "docs" { // default request when initiating a redis-cli connection
+		return onPing()
+	}
+
+	return onPing() // just because. // TODO: Fix later
 }
 
 func onPing() string {
@@ -52,7 +66,7 @@ func onKeys(commands []string) string {
 	return ""
 }
 
-func onConfig(commands []string) string {
+func onConfigGet(commands []string) string {
 	response := ""
 	args := commands[2:]
 
@@ -97,23 +111,32 @@ func onSet(commands []string) string {
 		case "px": // set a timeout on the record
 			t, err := strconv.ParseInt(args[i+1], 0, 0)
 			if err != nil {
-				fmt.Println("Error parsing resp: SET: Timeout invalid.")
+				fmt.Println("Error parsing resp: SET Command: Timeout (ms) is invalid.")
 				os.Exit(0)
 			}
 
 			timeout := time.Duration(t) * time.Millisecond
 			record.expiresAt = time.Now().Add(time.Duration(timeout))
 			record.expires = true
+
+		case "ex": // set timeout in seconds
+			t, err := strconv.ParseInt(args[i+1], 0, 0)
+			if err != nil {
+				fmt.Println("error parsing resp: SET Command: Timeout (s) is invalid")
+			}
+
+			timeout := time.Duration(t)
+			record.expiresAt = time.Now().Add(time.Duration(timeout))
+			record.expires = true
 		}
 	}
 
-	keyValueStore[key] = record
-
+	RDB.databaseStore[key] = record
 	return respEncodeString("OK")
 }
 
 func onGet(commands []string) string {
-	val, exists := keyValueStore[commands[1]]
+	val, exists := RDB.databaseStore[commands[1]]
 	if !exists {
 		return ""
 	}

@@ -7,9 +7,6 @@ import (
 	"os"
 )
 
-// What it says it is.
-var keyValueStore = map[string]Record{}
-
 var RDB = redisRDB{}
 
 func main() {
@@ -38,9 +35,6 @@ func main() {
 	// Setup the RDB
 	RDB = setupRDB(dir, dbFileName)
 
-	// Load RDB into in-memory store
-	loadRDB(RDB)
-
 	// Listen for connections.
 	for {
 		conn, err := listener.Accept()
@@ -52,12 +46,6 @@ func main() {
 	}
 }
 
-// Loads the key-value pairs in the rdb to the in memory store. should be stored in the rdb instead but i'm lazy
-func loadRDB(rdb redisRDB) {
-	for k := range rdb.databaseStore {
-		keyValueStore[k] = rdb.databaseStore[k]
-	}
-}
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()

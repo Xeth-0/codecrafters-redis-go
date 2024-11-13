@@ -3,3 +3,4 @@
 **/dump.rdb
 app/dump.rdb
 **/dump/*
+app/__debug_bin*
