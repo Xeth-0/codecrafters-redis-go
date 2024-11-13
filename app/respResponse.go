@@ -41,7 +41,8 @@ func onInfo(commands []string) string {
 		case "replication":
 			if CONFIG.isSlave {
 				return respEncodeBulkString("role:slave")
-			}
+			} 
+
 			resp := fmt.Sprintf("role:master\r\nmaster_repl_offset:%d\r\nmaster_replid:%s", CONFIG.replicationOffset, CONFIG.replicationID)
 			return respEncodeBulkString(resp)
 		}
