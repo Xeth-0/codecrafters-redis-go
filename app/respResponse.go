@@ -26,9 +26,23 @@ func constructResponse(commands []string) string {
 		return onKeys(commands)
 	case "command":
 		return onCommand(commands)
+	case "info":
+		return onInfo(commands)
 
 	}
 	return "-ERROR"
+}
+
+func onInfo(commands []string) string {
+	args := commands[1:]
+
+	for _, arg := range(args){
+		switch arg{
+		case "replication":
+			return respEncodeBulkString("role:master")
+		}
+	}
+	return ""
 }
 
 func onCommand(commands []string) string {
