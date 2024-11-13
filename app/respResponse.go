@@ -9,7 +9,7 @@ import (
 
 func constructResponse(commands []string) string {
 	switch commands[0] {
-	
+
 	case "ping":
 		return onPing()
 	case "echo":
@@ -36,9 +36,12 @@ func constructResponse(commands []string) string {
 func onInfo(commands []string) string {
 	args := commands[1:]
 
-	for _, arg := range(args){
-		switch arg{
+	for _, arg := range args {
+		switch arg {
 		case "replication":
+			if CONFIG.isSlave{
+				return respEncodeBulkString("role:slave")
+			}
 			return respEncodeBulkString("role:master")
 		}
 	}

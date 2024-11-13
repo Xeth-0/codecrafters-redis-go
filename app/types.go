@@ -1,6 +1,8 @@
 package main
 
-import "time"
+import (
+	"time"
+)
 
 // RESP Type signifier for comparison
 type RESPType byte
@@ -53,4 +55,13 @@ type redisRDB struct {
 	config        RDBConfig
 	databaseStore map[string]Record // stores the key-value pairs
 	// auxFields map[string]string // Auxiliary fields (string just because)
+}
+
+type redisConfig struct {
+	isSlave       bool
+	master        string
+	info          map[string]map[string]any
+	rdbDir        string
+	rdbDbFileName string
+	port          int
 }

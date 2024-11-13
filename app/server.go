@@ -8,24 +8,41 @@ import (
 )
 
 var RDB = redisRDB{}
+var CONFIG = redisConfig{}
 
 func main() {
-	if len(os.Args) < 3 {
+	if len(os.Args) < 4 {
 		fmt.Println("Not enough arguements provided. Using default values for missing fields...")
 	}
+
 	// Get the directory and filename for the rdb store.
 	dirFlag := flag.String("dir", "dump", "rdb store directory")
 	dbFileNameFlag := flag.String("dbfilename", "dump.rdb", "rdb store filename")
 	portFlag := flag.Int("port", 6379, "the port that this redis server will use to run")
+	replicaOfFlag := flag.String("replicaof", "master", "master or slave")
 
 	flag.Parse()
 
 	dir := *dirFlag
 	dbFileName := *dbFileNameFlag
 	port := *portFlag
+	replicaOf := *replicaOfFlag
 
-	// Setup the listener on the port
-	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
+	if replicaOf != "master" {
+		CONFIG.isSlave = true
+		CONFIG.master = replicaOf
+	}
+
+	CONFIG.port = port
+	CONFIG.rdbDbFileName = dbFileName
+	CONFIG.rdbDir = dir
+
+	startServer()
+}
+
+// Setup the tcp listener on the port specified
+func startServer() {
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", CONFIG.port))
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
@@ -33,7 +50,7 @@ func main() {
 	defer listener.Close()
 
 	// Setup the RDB
-	RDB = setupRDB(dir, dbFileName)
+	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName)
 
 	// Listen for connections.
 	for {
