@@ -167,7 +167,7 @@ func decodeExpiryTimestamp(data []byte) (timestamp time.Time, indexOffset int, e
 func loadRDBFromFile(dir string, dbFileName string) ([]byte, bool) {
 	data, err := os.ReadFile(dir + "/" + dbFileName)
 	if err != nil {
-		fmt.Println("Error reading rdb file. Proceeding anyway")
+		fmt.Println("error reading rdb file. Proceeding anyway...")
 		return data, false
 	}
 
