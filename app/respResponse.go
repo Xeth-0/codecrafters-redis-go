@@ -39,10 +39,11 @@ func onInfo(commands []string) string {
 	for _, arg := range args {
 		switch arg {
 		case "replication":
-			if CONFIG.isSlave{
+			if CONFIG.isSlave {
 				return respEncodeBulkString("role:slave")
 			}
-			return respEncodeBulkString("role:master")
+			resp := fmt.Sprintf("role:master\r\nmaster_repl_offset:%d\r\nmaster_replid:%s", CONFIG.replicationOffset, CONFIG.replicationID)
+			return respEncodeBulkString(resp)
 		}
 	}
 	return ""

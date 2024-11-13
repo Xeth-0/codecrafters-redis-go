@@ -31,6 +31,10 @@ func main() {
 	if replicaOf != "master" {
 		CONFIG.isSlave = true
 		CONFIG.master = replicaOf
+	} else {
+		// set the replication ID and offset
+		CONFIG.replicationID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+		CONFIG.replicationOffset = 0
 	}
 
 	CONFIG.port = port
