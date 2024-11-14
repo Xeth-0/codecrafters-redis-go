@@ -28,15 +28,21 @@ func constructResponse(commands []string) string {
 		return onCommand(commands)
 	case "info":
 		return onInfo(commands)
-
 	case "replconf":
 		return onReplConf(commands)
 
+	case "psync":
+		return onPSync(commands)
 	}
 	return "-ERROR"
 }
 
-func onReplConf(commands []string) string{
+func onPSync(commands []string) string {
+	// args := commands[1:]
+	return respEncodeString(fmt.Sprintf("FULLRESYNC %s %d", CONFIG.masterReplID, CONFIG.masterReplOffset))
+}
+
+func onReplConf(commands []string) string {
 	return respEncodeString("OK")
 }
 
