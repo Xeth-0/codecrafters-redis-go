@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 )
 
 var RDB = redisRDB{}
@@ -84,7 +85,7 @@ func sendHandshake() {
 		fmt.Println("error recieving handshake response from master: ", err)
 	}
 	if response.respData.String != "PONG" {
-		fmt.Println("error recieving handshake response from master: wrong response(expected: +PONG\r\n)")
+		fmt.Println("error recieving handshake response(1/3) from master: wrong response(expected: +PONG\r\n)")
 		os.Exit(0)
 	}
 
@@ -103,6 +104,29 @@ func sendHandshake() {
 	replconfReq2 = append(replconfReq2, "psync2")
 
 	m.Write([]byte(respEncodeStringArray(replconfReq2)))
+
+	// Response for Handshake 2/3
+	responseBuffer = make([]byte, 0, 1024)
+	_, err = m.Read(responseBuffer)
+	if err != nil {
+		fmt.Println("error recieving handshake response(1/3) from master: ", err)
+		os.Exit(0)
+	}
+
+	// ignoring this response: don't know what it is or how to handle it yet.
+	fmt.Println("REPLCONF response: ", responseBuffer)
+
+	// PSYNC
+	req := make([]string, 0, 3)
+	req = append(req, "PSYNC")
+	req = append(req, "?")
+	req = append(req, "-1")
+
+	fmt.Println(respEncodeStringArray(req))
+	
+	time.Sleep(10 * time.Millisecond) // give the master server a second so that it's ready to recieve a command
+
+	m.Write([]byte(respEncodeStringArray(req)))
 }
 
 // Setup the tcp listener on the port specified

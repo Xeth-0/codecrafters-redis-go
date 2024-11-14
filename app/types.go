@@ -24,9 +24,10 @@ var RESPTypes = struct {
 
 // RESP request data store
 type RESPData struct {
-	String string // for string RESP requests/subrequests
-	Int    int    // for int ...
-	Array  []RESP // for array.... Will hold nested RESP requests to handle arrays in arrays, or maps in arrays
+	String   string   // for string RESP requests/subrequests
+	Int      int      // for int ...
+	Array    []RESP   // for array.... Will hold nested RESP requests to handle arrays in arrays, or maps in arrays
+	RespType RESPType // identifies the type
 }
 
 // Struct to hold the RESP parsed request
