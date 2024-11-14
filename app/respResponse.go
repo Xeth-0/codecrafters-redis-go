@@ -29,8 +29,15 @@ func constructResponse(commands []string) string {
 	case "info":
 		return onInfo(commands)
 
+	case "replconf":
+		return onReplConf(commands)
+
 	}
 	return "-ERROR"
+}
+
+func onReplConf(commands []string) string{
+	return respEncodeString("OK")
 }
 
 func onInfo(commands []string) string {
