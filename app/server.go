@@ -33,7 +33,7 @@ func main() {
 	CONFIG.rdbDbFileName = dbFileName
 	CONFIG.rdbDir = dir
 
-	fmt.Println(replicaOf)
+	// fmt.Println(replicaOf)
 
 	if replicaOf != "master" {
 		// is a replica.
@@ -83,7 +83,6 @@ func sendHandshake() {
 	if err != nil {
 		fmt.Println("error recieving handshake response from master: ", err)
 	}
-	fmt.Println(response.respData.String)
 	if response.respData.String != "PONG" {
 		fmt.Println("error recieving handshake response from master: wrong response(expected: +PONG\r\n)")
 		os.Exit(0)

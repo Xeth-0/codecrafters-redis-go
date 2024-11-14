@@ -255,7 +255,7 @@ func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int)
 		expiresFlag := false
 
 		if data[index] == opCodeExpireTime || data[index] == opCodeExpireTimeMs { // handle the expiry timestamp
-			fmt.Println(data[index])
+			// fmt.Println(data[index])
 			t, offset, err := decodeExpiryTimestamp(data[index:])
 			if err != nil {
 				fmt.Println("error parsing key-value pair: error parsing timestamp")
@@ -282,20 +282,16 @@ func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int)
 			fmt.Println(err)
 			os.Exit(0)
 		}
-
 		// fmt.Println("VALUE: ", value)
 		index += indexOffset
-
 		record := Record{
 			value: value,
 		}
-
 		if expiresFlag {
 			record.expiresAt = timeStamp
 			record.expires = true
 		}
-
-		fmt.Println("KEY: ", key, "VALUE: ", value, "EXPIRY: ", timeStamp)
+		// fmt.Println("KEY: ", key, "VALUE: ", value, "EXPIRY: ", timeStamp)
 
 		rdb.databaseStore[key] = record
 	}
