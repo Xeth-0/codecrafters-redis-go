@@ -65,7 +65,7 @@ type redisConfig struct {
 	masterReplID     string // info to pass to slaves if not isSlave
 	masterReplOffset int
 
-	info map[string]map[string]any // nothing for now
+	// info map[string]map[string]any // nothing for now
 
 	rdbDir        string // rdb config options
 	rdbDbFileName string

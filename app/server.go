@@ -123,7 +123,7 @@ func sendHandshake() {
 	req = append(req, "-1")
 
 	fmt.Println(respEncodeStringArray(req))
-	
+
 	time.Sleep(10 * time.Millisecond) // give the master server a second so that it's ready to recieve a command
 
 	m.Write([]byte(respEncodeStringArray(req)))
@@ -171,12 +171,17 @@ func handleConnection(conn net.Conn) {
 			os.Exit(0)
 		}
 
+		// Extract the commands sent from the resp request.
 		commands, _ := extractCommandFromRESP(respRequest)
-		response := constructResponse(commands)
+
+		// Construct and send the response for the resp request using the given commands.
+		response, err := handleResponse(commands, conn)
+		if err != nil {
+			// TODO
+		}
+
 		byteResponse := []byte(response)
 
-		// fmt.Println("--Outgoing bytes =>  ", byteResponse)
-
-		conn.Write(byteResponse)
+		fmt.Println("--Outgoing bytes =>  ", byteResponse)
 	}
 }
