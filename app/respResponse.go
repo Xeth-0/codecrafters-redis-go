@@ -30,15 +30,15 @@ func handleResponse(commands []string, conn net.Conn) (string, error) {
 	case "info":
 		return onInfo(commands, conn)
 	case "replconf":
-		return onReplConf(commands, conn)
+		return onReplConf(conn)
 
 	case "psync":
-		return onPSync(commands, conn)
+		return onPSync(conn)
 	}
 	return "", fmt.Errorf("error parsing request")
 }
 
-func onPSync(commands []string, conn net.Conn) (string, error) {
+func onPSync(conn net.Conn) (string, error) {
 	// args := commands[1:]
 	// Need to send 2 responses. First a FULLRESYNC response. Then, an encoded version of the rdb store.
 	response := respEncodeString(fmt.Sprintf("FULLRESYNC %s %d", CONFIG.masterReplID, CONFIG.masterReplOffset))
@@ -47,14 +47,14 @@ func onPSync(commands []string, conn net.Conn) (string, error) {
 	// Unlike regular bulk strings, the encoded rdb we have to send to the server doesnt have the final /r/n
 	encodedRDB := string(encodeRDB(RDB))
 	response = respEncodeBulkString(encodedRDB)
-	
+
 	// remove that final /r/n at the end of the bulk encoded string
 	response = response[:len(response)-2]
 	conn.Write([]byte(response))
 	return "", nil
 }
 
-func onReplConf(commands []string, conn net.Conn) (string, error) {
+func onReplConf(conn net.Conn) (string, error) {
 	response := respEncodeString("OK")
 	conn.Write([]byte(response))
 	return response, nil
@@ -118,7 +118,7 @@ func onKeys(commands []string, conn net.Conn) (string, error) {
 		// TODO
 		// If a patern is provided. his is regex matching, will do later.
 	}
-	return "", fmt.Errorf("error handling request: KEYS - '*' not provided.")
+	return "", fmt.Errorf("error handling request: KEYS - '*' not provided")
 }
 
 func onConfigGet(commands []string, conn net.Conn) (string, error) {
