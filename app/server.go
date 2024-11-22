@@ -152,16 +152,15 @@ func startServer() {
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-
 	for {
 		readBuffer := make([]byte, 1024)
-
 		n, err := conn.Read(readBuffer) // Read the request.
 		if err != nil {
 			return
 		}
 
-		readBuffer = readBuffer[:n] // Cut off the empty bytes at the end
+		// Cut off the empty bytes at the end
+		readBuffer = readBuffer[:n]
 		// fmt.Println("--Incoming bytes => ", readBuffer)
 
 		// parse the resp request into a struct for easier manipulation
@@ -174,14 +173,36 @@ func handleConnection(conn net.Conn) {
 		// Extract the commands sent from the resp request.
 		commands, _ := extractCommandFromRESP(respRequest)
 
+		switch commands[0] {
+		case "set":
+			propagateCommands(readBuffer)
+		}
+
 		// Construct and send the response for the resp request using the given commands.
-		response, err := handleResponse(commands, conn)
+		responses, _ := handleResponse(commands, conn)
+
+		err = sendResponse(responses, conn)
 		if err != nil {
 			// TODO
 		}
 
-		byteResponse := []byte(response)
-
-		fmt.Println("--Outgoing bytes =>  ", byteResponse)
 	}
+}
+
+func propagateCommands(request []byte) error {
+	var e error = nil
+	for _, replica := range CONFIG.replicas{
+		_, err := replica.Write(request)
+		if err != nil {
+			e = err
+		}
+	}
+	return e
+}
+
+func sendResponse(responses []string, conn net.Conn) error {
+	for _, response := range responses {
+		conn.Write([]byte(response))
+	}
+	return nil
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"time"
+	"net"
 )
 
 // RESP Type signifier for comparison
@@ -66,6 +67,7 @@ type redisConfig struct {
 	masterReplOffset int
 
 	// info map[string]map[string]any // nothing for now
+	replicas []net.Conn
 
 	rdbDir        string // rdb config options
 	rdbDbFileName string

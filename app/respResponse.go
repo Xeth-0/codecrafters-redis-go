@@ -2,47 +2,52 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"strconv"
 	"time"
+	"net"
 )
 
-func handleResponse(commands []string, conn net.Conn) (string, error) {
+func handleResponse(commands []string, conn net.Conn) (responses []string, err error) {
 	switch commands[0] {
 
 	case "ping":
-		return onPing(conn)
+		return onPing()
 	case "echo":
-		return onEcho(commands, conn)
+		return onEcho(commands)
 	case "set":
-		return onSet(commands, conn)
+		return onSet(commands)
 	case "get":
-		return onGet(commands, conn)
+		return onGet(commands)
 	case "config":
 		if len(commands) >= 2 && commands[1] == "get" {
-			return onConfigGet(commands, conn)
+			return onConfigGet(commands)
 		}
 	case "keys":
-		return onKeys(commands, conn)
+		return onKeys(commands)
 	case "command":
-		return onCommand(commands, conn)
+		return onCommand(commands)
 	case "info":
-		return onInfo(commands, conn)
+		return onInfo(commands)
 	case "replconf":
-		return onReplConf(conn)
+		return onReplConf()
 
 	case "psync":
-		return onPSync(conn)
+		// Save the connection as a replica
+		CONFIG.replicas = append(CONFIG.replicas, conn)
+
+		return onPSync()
 	}
-	return "", fmt.Errorf("error parsing request")
+	return nil, fmt.Errorf("error parsing request")
 }
 
-func onPSync(conn net.Conn) (string, error) {
+func onPSync() ([]string, error) {
 	// args := commands[1:]
-	// Need to send 2 responses. First a FULLRESYNC response. Then, an encoded version of the rdb store.
+	responses := make([]string, 0, 3)
+	
+	// Need to send 2 responses. First a FULL RESYNC response. Then, an encoded version of the rdb store.
 	response := respEncodeString(fmt.Sprintf("FULLRESYNC %s %d", CONFIG.masterReplID, CONFIG.masterReplOffset))
-	conn.Write([]byte(response))
+	responses = append(responses, response)
 
 	// Unlike regular bulk strings, the encoded rdb we have to send to the server doesnt have the final /r/n
 	encodedRDB := string(encodeRDB(RDB))
@@ -50,54 +55,59 @@ func onPSync(conn net.Conn) (string, error) {
 
 	// remove that final /r/n at the end of the bulk encoded string
 	response = response[:len(response)-2]
-	conn.Write([]byte(response))
-	return "", nil
+	responses = append(responses, response)
+	return responses, nil
 }
 
-func onReplConf(conn net.Conn) (string, error) {
+func onReplConf() ([]string, error) {
+	responses := make([]string, 0, 3)
 	response := respEncodeString("OK")
-	conn.Write([]byte(response))
-	return response, nil
+	responses = append(responses, response)
+	return responses, nil
 }
 
-func onInfo(commands []string, conn net.Conn) (string, error) {
+func onInfo(commands []string) ([]string, error) {
 	args := commands[1:]
+	responses := make([]string, 0, 3)
 
 	for _, arg := range args {
 		switch arg {
 		case "replication":
 			if CONFIG.isSlave {
 				response := respEncodeBulkString("role:slave")
-				conn.Write([]byte(response))
+				responses = append(responses, response)
 			}
 
 			rawResponse := fmt.Sprintf("role:master\r\nmaster_repl_offset:%d\r\nmaster_replid:%s", CONFIG.masterReplOffset, CONFIG.masterReplID)
 			response := respEncodeBulkString(rawResponse)
-			conn.Write([]byte(response))
-			return response, nil
+			responses = append(responses, response)
+			return responses, nil
 		}
 	}
-	return "", fmt.Errorf("error handling request: INFO - replication flag not provided (all this can handle at the moment)")
+	return responses, fmt.Errorf("error handling request: INFO - replication flag not provided (all this can handle at the moment)")
 }
 
-func onCommand(commands []string, conn net.Conn) (string, error) {
+func onCommand(commands []string) ([]string, error) {
 	args := commands[1:]
 
 	if args[0] == "docs" { // default request when initiating a redis-cli connection
-		return onPing(conn)
+		return onPing()
 	}
 
-	return onPing(conn) // just because. // TODO: Fix later
+	return onPing() // just because. // TODO: Fix later
 }
 
-func onPing(conn net.Conn) (string, error) {
+func onPing() ([]string, error) {
+	responses := make([]string, 0, 3)
 	response := respEncodeString("PONG")
-	conn.Write([]byte(response))
-	return response, nil
+	
+	responses = append(responses, response)
+	return responses, nil
 }
 
-func onKeys(commands []string, conn net.Conn) (string, error) {
+func onKeys(commands []string) ([]string, error) {
 	args := commands[1:]
+	responses := make([]string, 0, 3)
 
 	if len(args) < 1 {
 		fmt.Println("Not enough args in command")
@@ -112,19 +122,21 @@ func onKeys(commands []string, conn net.Conn) (string, error) {
 		}
 
 		response := respEncodeStringArray(keys)
-		conn.Write([]byte(response))
-		return response, nil
+		responses = append(responses, response)
+
+		return responses, nil
 	} else {
 		// TODO
 		// If a patern is provided. his is regex matching, will do later.
 	}
-	return "", fmt.Errorf("error handling request: KEYS - '*' not provided")
+	return responses, fmt.Errorf("error handling request: KEYS - '*' not provided")
 }
 
-func onConfigGet(commands []string, conn net.Conn) (string, error) {
-	response := ""
+func onConfigGet(commands []string) ([]string, error) {
 	args := commands[2:]
-
+	responses := make([]string, 0, 3)
+	
+	response := ""
 	count := 0
 	for _, arg := range args {
 		switch arg {
@@ -139,25 +151,27 @@ func onConfigGet(commands []string, conn net.Conn) (string, error) {
 		}
 	}
 	response = fmt.Sprintf("*%d\r\n", count) + response
-	conn.Write([]byte(response))
-	return response, nil
+	responses = append(responses, response)
+	return responses, nil
 }
 
-func onEcho(commands []string, conn net.Conn) (string, error) {
+func onEcho(commands []string) ([]string, error) {
 	arg := ""
+	responses := make([]string, 0, 1)
 	if len(commands) >= 2 {
 		arg = commands[1]
 	} else {
-		conn.Write([]byte(arg))
-		return arg, nil
+		responses = append(responses, arg)
+		return responses, nil
 	}
-
 	response := respEncodeString(arg)
-	conn.Write([]byte(response))
-	return response, nil
+	responses = append(responses, response)
+	return responses, nil
 }
 
-func onSet(commands []string, conn net.Conn) (string, error) {
+func onSet(commands []string) ([]string, error) {
+	responses := make([]string, 0, 2)
+
 	// Set up the record
 	record := Record{}
 
@@ -193,22 +207,23 @@ func onSet(commands []string, conn net.Conn) (string, error) {
 
 	RDB.databaseStore[key] = record
 	response := respEncodeString("OK")
-	conn.Write([]byte(response))
-	return response, nil
+	responses = append(responses, response)
+	return responses, nil
 }
 
-func onGet(commands []string, conn net.Conn) (string, error) {
+func onGet(commands []string) ([]string, error) {
+	responses := make([]string, 0, 1)
 	val, exists := RDB.databaseStore[commands[1]]
 	if !exists {
-		return "", fmt.Errorf("error handling request: GET - value not found")
+		return responses, fmt.Errorf("error handling request: GET - value not found")
 	}
 	if val.expires && val.expiresAt.Compare(time.Now()) == -1 {
 		// expired
-		conn.Write([]byte("$-1\r\n"))
-		return "$-1\r\n", nil
+		responses = append(responses, "$-1\r\n")
+		return responses, nil
 	}
 
 	response := respEncodeBulkString(val.value)
-	conn.Write([]byte(response))
-	return response, nil
+	responses = append(responses, response)
+	return responses, nil
 }
