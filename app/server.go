@@ -48,7 +48,7 @@ func main() {
 
 		time.Sleep(100 * time.Millisecond)
 
-		go handleConnection(masterConn) // start listening to propagation requests from master
+		go handleConnection(masterConn, true) // start listening to propagation requests from master
 	} else {
 		CONFIG.masterReplOffset = 0
 		CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
@@ -82,13 +82,14 @@ func startServer() {
 			continue // discard current connection and continue
 		}
 
-		go handleConnection(conn)
+		go handleConnection(conn, false)
 	}
 }
 
 // Go-routine to accept and respond to new connections. Keeps running to listen to
+//
 //	and keep the connection alive.
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, isMasterConn bool) {
 	defer conn.Close()
 
 	for {
@@ -102,7 +103,7 @@ func handleConnection(conn net.Conn) {
 		if err != nil {
 			logAndExit("Error parsing request", err)
 		}
-		processRequests(respRequests, readBuffer, conn)
+		processRequests(respRequests, readBuffer, conn, isMasterConn)
 	}
 }
 
@@ -117,20 +118,29 @@ func readFromConnection(conn net.Conn) ([]byte, error) {
 }
 
 // Handles the read request and responds to the request.
-func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn) {
+func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn, isMasterConn bool) {
 	for _, respRequest := range respRequests {
 		commands, _ := extractCommandFromRESP(respRequest)
 		if len(commands) < 1 {
 			continue
 		}
 
-		if commands[0] == "set" { // only one that propagates so far is set
-			propagateCommands(readBuffer)
-		}
 		responses, _ := executeResp(commands, conn)
+		if isMasterConn {
+			if commands[0] == "set" { // only one that propagates so far is set
+				propagateCommands(readBuffer)
+			}
+		} else {
+			// update the offset
+			CONFIG.masterReplOffset += len(readBuffer)
+			if commands[0] == "ping" { // should send no response, so we break from the fn early
+				return
+			}
+		}
 		if err := sendResponse(responses, conn); err != nil {
 			// TODO: Handle error
 		}
+
 	}
 }
 
