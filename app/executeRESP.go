@@ -9,6 +9,7 @@ import (
 )
 
 func executeResp(commands []string, conn net.Conn) (responses []string, err error) {
+	fmt.Println(commands[0])
 	switch commands[0] {
 	case "ping":
 		return onPing()
@@ -59,7 +60,8 @@ func onReplConf(commands []string) ([]string, error) {
 	args := commands[1:]
 	if args[0] == "getack" {
 		if args[1] == "*" {
-			response := []string{"REPLCONF", "ACK", "0"}
+			offset := fmt.Sprintf("%d", CONFIG.masterReplOffset)
+			response := []string{"REPLCONF", "ACK", offset}
 			return []string{respEncodeStringArray(response)}, nil
 		}
 	} 

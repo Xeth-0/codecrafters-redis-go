@@ -34,6 +34,9 @@ func main() {
 	CONFIG.rdbDir = dir
 	CONFIG.rdbDbFileName = dbFileName
 
+	// Read stored RDB.
+	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName)
+
 	if replicaOf != "master" { // has to be a replica, with the master's ip and port provided in 'replicaof'
 		CONFIG.isSlave = true
 		r := strings.Split(replicaOf, " ")
@@ -57,9 +60,6 @@ func main() {
 	// Giving the master a chance to sync up with this replica. 2 seconds might seem
 	//  excessive, it is, but I can't seem to avoid race conditions otherwise.
 	time.Sleep(2000 * time.Millisecond)
-
-	// Read stored RDB.
-	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName)
 
 	// Start the server and begin listening to tcp connections for clients.
 	startServer()
@@ -119,6 +119,11 @@ func readFromConnection(conn net.Conn) ([]byte, error) {
 
 // Handles the read request and responds to the request.
 func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn, isMasterConn bool) {
+	if isMasterConn { // update the offset
+		CONFIG.masterReplOffset += len(readBuffer)
+	}
+
+	// address each request
 	for _, respRequest := range respRequests {
 		commands, _ := extractCommandFromRESP(respRequest)
 		if len(commands) < 1 {
@@ -127,14 +132,12 @@ func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn, isMa
 
 		responses, _ := executeResp(commands, conn)
 		if isMasterConn {
-			if commands[0] == "set" { // only one that propagates so far is set
-				propagateCommands(readBuffer)
+			if commands[0] == "ping" || commands[0] == "set" { // should send no response, so we break from the fn early
+				continue
 			}
 		} else {
-			// update the offset
-			CONFIG.masterReplOffset += len(readBuffer)
-			if commands[0] == "ping" { // should send no response, so we break from the fn early
-				return
+			if commands[0] == "set" { // only one that propagates so far is set
+				propagateCommands(readBuffer)
 			}
 		}
 		if err := sendResponse(responses, conn); err != nil {
