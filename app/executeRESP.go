@@ -34,8 +34,14 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 	case "psync":
 		CONFIG.replicas = append(CONFIG.replicas, conn) // Save the connection as a replica for propagation.
 		return onPSync()
+	case "wait":
+		return onWait()
 	}
 	return nil, fmt.Errorf("error parsing request")
+}
+
+func onWait()([]string, error){
+	return []string{respEncodeInteger(0)}, nil
 }
 
 func onPSync() ([]string, error) {

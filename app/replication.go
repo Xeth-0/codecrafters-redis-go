@@ -62,7 +62,7 @@ func _handshakeSendReplConf(conn net.Conn, key, value string) {
 	// should also be checking that the response is +OK\r\n, but sometimes the server
 	// will send nothing, and wait to send the entire thing at once. This works for now.
 
-	fmt.Println("handshake response(replconf):", string(responseBuffer))
+	// fmt.Println("handshake response(replconf):", string(responseBuffer))
 }
 
 func _handshakeSendPsync(conn net.Conn) {
@@ -79,7 +79,7 @@ func _handshakeSendPsync(conn net.Conn) {
 	// should also be checking that the response is the rdb, but sometimes the server
 	// will send nothing, and wait to send the entire thing at once. This works for now.'
 
-	fmt.Println("handshake response (psync):", string(responseBuffer))
+	// fmt.Println("handshake response (psync):", string(responseBuffer))
 	resp := respEncodeStringArray([]string{"REPLCONF", "ACK", "0"})
 	conn.Write([]byte(resp))
 }

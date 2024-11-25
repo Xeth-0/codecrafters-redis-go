@@ -26,3 +26,7 @@ func respEncodeStringArray(strs []string) string {
 
 	return arrayString
 }
+
+func respEncodeInteger(num int) string {
+	return fmt.Sprintf(":%d\r\n", num)
+}
