@@ -2,10 +2,10 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
-	"encoding/hex"
 )
 
 // opCodes for section delimiters/identifiers in the .rdb file to be read.
@@ -52,7 +52,6 @@ func setupRDB(dir string, dbFileName string) redisRDB {
 
 	// need to load in the rdb specified by the dirname and dir.
 	data, exists := loadRDBFromFile(dir, dbFileName)
-
 	if exists {
 		// load the data from the rdb file.
 		rdb = parseRDB(data, rdb)

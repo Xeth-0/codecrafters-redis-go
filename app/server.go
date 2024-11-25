@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"time"
 )
 
 var RDB = redisRDB{}
@@ -26,18 +25,15 @@ func main() {
 	flag.Parse()
 
 	dir := *dirFlag
-	dbFileName := *dbFileNameFlag
 	port := *portFlag
 	replicaOf := *replicaOfFlag
+	dbFileName := *dbFileNameFlag
 
 	CONFIG.port = port
-	CONFIG.rdbDbFileName = dbFileName
 	CONFIG.rdbDir = dir
+	CONFIG.rdbDbFileName = dbFileName
 
-	// fmt.Println(replicaOf)
-
-	if replicaOf != "master" {
-		// is a replica.
+	if replicaOf != "master" { // has to be a replica, with the master's ip and port provided in 'replicaof'
 		CONFIG.isSlave = true
 		r := strings.Split(replicaOf, " ")
 		if len(r) < 2 {
@@ -47,86 +43,20 @@ func main() {
 		CONFIG.masterHost = r[0]
 		CONFIG.masterPort = r[1]
 
-		// establish connection with the master
-		sendHandshake()
+		masterConn := connectToMaster()
+
+		go handleConnection(masterConn) // start listening to propagation requests from master
+
 	} else {
-		// set the replication ID and offset
-		CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 		CONFIG.masterReplOffset = 0
+		CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 	}
 
+	// Read stored RDB.
+	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName) 
+
+	// Start the server and begin listening to tcp connections for clients.
 	startServer()
-}
-
-func sendHandshake() {
-	address := fmt.Sprintf("%s:%s", CONFIG.masterHost, CONFIG.masterPort)
-	m, err := net.Dial("tcp", address)
-	if err != nil {
-		fmt.Println("error sending handshake to master: cannot establish dialup with the master: ", err)
-		os.Exit(0)
-	}
-
-	// Handshake 1/3 - Send the first PING command
-	pingReq := make([]string, 1)
-	pingReq[0] = "PING"
-	m.Write([]byte(respEncodeStringArray(pingReq)))
-
-	// Response from handshake 1
-	responseBuffer := make([]byte, 1024)
-	_, err = m.Read(responseBuffer)
-	if err != nil {
-		fmt.Println("error recieving handshake response from master: ", err)
-		os.Exit(0)
-	}
-
-	// going to assume the response is pong for now
-	response, err := parseRESP([]byte(responseBuffer))
-	if err != nil {
-		fmt.Println("error recieving handshake response from master: ", err)
-	}
-	if response.respData.String != "PONG" {
-		fmt.Println("error recieving handshake response(1/3) from master: wrong response(expected: +PONG\r\n)")
-		os.Exit(0)
-	}
-
-	// Handshake 2/3 - Send the first REPLCONF command
-	replconfReq := make([]string, 0, 3)
-	replconfReq = append(replconfReq, "REPLCONF")
-	replconfReq = append(replconfReq, "listening-port")
-	replconfReq = append(replconfReq, fmt.Sprintf("%d", CONFIG.port))
-
-	m.Write([]byte(respEncodeStringArray(replconfReq)))
-
-	// Handshake 3/3 - Send the second REPLCONF command
-	replconfReq2 := make([]string, 0, 3)
-	replconfReq2 = append(replconfReq2, "REPLCONF")
-	replconfReq2 = append(replconfReq2, "capa")
-	replconfReq2 = append(replconfReq2, "psync2")
-
-	m.Write([]byte(respEncodeStringArray(replconfReq2)))
-
-	// Response for Handshake 2/3
-	responseBuffer = make([]byte, 0, 1024)
-	_, err = m.Read(responseBuffer)
-	if err != nil {
-		fmt.Println("error recieving handshake response(1/3) from master: ", err)
-		os.Exit(0)
-	}
-
-	// ignoring this response: don't know what it is or how to handle it yet.
-	fmt.Println("REPLCONF response: ", responseBuffer)
-
-	// PSYNC
-	req := make([]string, 0, 3)
-	req = append(req, "PSYNC")
-	req = append(req, "?")
-	req = append(req, "-1")
-
-	fmt.Println(respEncodeStringArray(req))
-
-	time.Sleep(10 * time.Millisecond) // give the master server a second so that it's ready to recieve a command
-
-	m.Write([]byte(respEncodeStringArray(req)))
 }
 
 // Setup the tcp listener on the port specified
@@ -138,60 +68,67 @@ func startServer() {
 	}
 	defer listener.Close()
 
-	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName) // Setup the RDB
-
-	for { // Listen for connections.
+	// Listen for connections.
+	for { 
 		conn, err := listener.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection")
+			fmt.Println("Error accepting connection: ", err)
+			continue // discard current connection and continue
 		}
 
 		go handleConnection(conn)
 	}
 }
 
+// Go-routine to accept and respond to new connections. Keeps running to listen to 
+//   and keep the connection alive.
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
+
 	for {
-		readBuffer := make([]byte, 1024)
-		n, err := conn.Read(readBuffer) // Read the request.
+		readBuffer, err := readFromConnection(conn)
 		if err != nil {
-			return
+			continue // discard and continue
 		}
 
-		// Cut off the empty bytes at the end
-		readBuffer = readBuffer[:n]
-		// fmt.Println("--Incoming bytes => ", readBuffer)
-
-		// parse the resp request into a struct for easier manipulation
-		respRequest, err := parseRESP(readBuffer)
+		respRequests, err := parseRESP(readBuffer)
 		if err != nil {
-			fmt.Println("Error parsing request")
-			os.Exit(0)
+			logAndExit("Error parsing request", err)
 		}
 
-		// Extract the commands sent from the resp request.
+		processRequests(respRequests, readBuffer, conn)
+	}
+}
+
+// Reads from the given connection into a buffer. returns the buffer.
+func readFromConnection(conn net.Conn) ([]byte, error) {
+	buffer := make([]byte, 1024)
+	n, err := conn.Read(buffer)
+	if err != nil {
+		return nil, err
+	}
+	return buffer[:n], nil
+}
+
+// Handles the read request and responds to the request.
+func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn) {
+	for _, respRequest := range respRequests {
 		commands, _ := extractCommandFromRESP(respRequest)
 
-		switch commands[0] {
-		case "set":
+		if commands[0] == "set" { // only one that propagates so far is set
 			propagateCommands(readBuffer)
 		}
 
-		// Construct and send the response for the resp request using the given commands.
-		responses, _ := handleResponse(commands, conn)
-
-		err = sendResponse(responses, conn)
-		if err != nil {
-			// TODO
+		responses, _ := executeResp(commands, conn)
+		if err := sendResponse(responses, conn); err != nil {
+			// TODO: Handle error
 		}
-
 	}
 }
 
 func propagateCommands(request []byte) error {
 	var e error = nil
-	for _, replica := range CONFIG.replicas{
+	for _, replica := range CONFIG.replicas {
 		_, err := replica.Write(request)
 		if err != nil {
 			e = err
@@ -205,4 +142,10 @@ func sendResponse(responses []string, conn net.Conn) error {
 		conn.Write([]byte(response))
 	}
 	return nil
+}
+
+// Logs the error and message and exits with os.Exit(0).
+func logAndExit(message string, err error) {
+	fmt.Println(message, ":", err)
+	os.Exit(0)
 }

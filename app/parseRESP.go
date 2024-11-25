@@ -7,8 +7,24 @@ import (
 	"strings"
 )
 
-// Parse incoming resp request.
-func parseRESP(respBytes []byte) (RESP, error) {
+// Parse incoming resp request. Returns an array of resp objects containing the 
+// parsed requests. This is because sometimes more than one request might be bundled
+// into the same tcp request.
+func parseRESP(respBytes []byte) ([]RESP, error) {
+	resps := make([]RESP, 0, 2)
+	for len(respBytes) > 0 {
+		resp, err := _parseRESP(respBytes)
+		if err != nil {
+			return resps, err
+		}
+		resps = append(resps, resp)
+		respBytes = respBytes[len(resp.RawBytes):]
+	}
+	return resps, nil
+}
+
+// Parse individual resp requests, returns one resp object containing the parsed values.
+func _parseRESP(respBytes []byte) (RESP, error) {
 	if len(respBytes) == 0 { // no data in packet. return empty resp struct
 		return RESP{}, fmt.Errorf("error parsing RESP Request: No data in packet")
 	}
@@ -122,7 +138,7 @@ func _parseRESP_Array(respBytes []byte) (RESP, error) {
 			return RESP{}, err
 		}
 
-		subResp, err := parseRESP(respBytes[p:])
+		subResp, err := _parseRESP(respBytes[p:])
 		if err != nil {
 			fmt.Println("Error parsing array: Error parsing array elements.")
 			return RESP{}, err

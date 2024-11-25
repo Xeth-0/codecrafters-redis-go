@@ -2,15 +2,14 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"time"
-	"net"
 )
 
-func handleResponse(commands []string, conn net.Conn) (responses []string, err error) {
+func executeResp(commands []string, conn net.Conn) (responses []string, err error) {
 	switch commands[0] {
-
 	case "ping":
 		return onPing()
 	case "echo":
@@ -31,11 +30,8 @@ func handleResponse(commands []string, conn net.Conn) (responses []string, err e
 		return onInfo(commands)
 	case "replconf":
 		return onReplConf()
-
 	case "psync":
-		// Save the connection as a replica
-		CONFIG.replicas = append(CONFIG.replicas, conn)
-
+		CONFIG.replicas = append(CONFIG.replicas, conn) // Save the connection as a replica for propagation.
 		return onPSync()
 	}
 	return nil, fmt.Errorf("error parsing request")
@@ -44,7 +40,7 @@ func handleResponse(commands []string, conn net.Conn) (responses []string, err e
 func onPSync() ([]string, error) {
 	// args := commands[1:]
 	responses := make([]string, 0, 3)
-	
+
 	// Need to send 2 responses. First a FULL RESYNC response. Then, an encoded version of the rdb store.
 	response := respEncodeString(fmt.Sprintf("FULLRESYNC %s %d", CONFIG.masterReplID, CONFIG.masterReplOffset))
 	responses = append(responses, response)
@@ -60,9 +56,8 @@ func onPSync() ([]string, error) {
 }
 
 func onReplConf() ([]string, error) {
-	responses := make([]string, 0, 3)
 	response := respEncodeString("OK")
-	responses = append(responses, response)
+	responses := []string{response}
 	return responses, nil
 }
 
@@ -98,10 +93,9 @@ func onCommand(commands []string) ([]string, error) {
 }
 
 func onPing() ([]string, error) {
-	responses := make([]string, 0, 3)
 	response := respEncodeString("PONG")
-	
-	responses = append(responses, response)
+	responses := []string{response}
+
 	return responses, nil
 }
 
@@ -126,16 +120,14 @@ func onKeys(commands []string) ([]string, error) {
 
 		return responses, nil
 	} else {
-		// TODO
-		// If a patern is provided. his is regex matching, will do later.
+		// TODO: If a patern is provided. needs regex matching, will do later.
 	}
 	return responses, fmt.Errorf("error handling request: KEYS - '*' not provided")
 }
 
 func onConfigGet(commands []string) ([]string, error) {
 	args := commands[2:]
-	responses := make([]string, 0, 3)
-	
+
 	response := ""
 	count := 0
 	for _, arg := range args {
@@ -151,7 +143,7 @@ func onConfigGet(commands []string) ([]string, error) {
 		}
 	}
 	response = fmt.Sprintf("*%d\r\n", count) + response
-	responses = append(responses, response)
+	responses := []string{response}
 	return responses, nil
 }
 
@@ -170,8 +162,6 @@ func onEcho(commands []string) ([]string, error) {
 }
 
 func onSet(commands []string) ([]string, error) {
-	responses := make([]string, 0, 2)
-
 	// Set up the record
 	record := Record{}
 
@@ -207,7 +197,7 @@ func onSet(commands []string) ([]string, error) {
 
 	RDB.databaseStore[key] = record
 	response := respEncodeString("OK")
-	responses = append(responses, response)
+	responses := []string{response}
 	return responses, nil
 }
 
