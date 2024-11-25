@@ -29,7 +29,7 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 	case "info":
 		return onInfo(commands)
 	case "replconf":
-		return onReplConf()
+		return onReplConf(commands)
 	case "psync":
 		CONFIG.replicas = append(CONFIG.replicas, conn) // Save the connection as a replica for propagation.
 		return onPSync()
@@ -55,7 +55,15 @@ func onPSync() ([]string, error) {
 	return responses, nil
 }
 
-func onReplConf() ([]string, error) {
+func onReplConf(commands []string) ([]string, error) {
+	args := commands[1:]
+	if args[0] == "getack" {
+		if args[1] == "*" {
+			response := []string{"REPLCONF", "ACK", "0"}
+			return []string{respEncodeStringArray(response)}, nil
+		}
+	} 
+
 	response := respEncodeString("OK")
 	responses := []string{response}
 	return responses, nil

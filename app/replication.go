@@ -32,6 +32,7 @@ func sendHandshake(conn net.Conn) error {
 	return nil
 }
 
+
 func _handshakeSendPing(conn net.Conn, command []string, expectedResponse string) {
 	conn.Write([]byte(respEncodeStringArray(command)))
 	time.Sleep(10 * time.Millisecond)
@@ -51,7 +52,7 @@ func _handshakeSendPing(conn net.Conn, command []string, expectedResponse string
 func _handshakeSendReplConf(conn net.Conn, key, value string) {
 	replConfReq := []string{"REPLCONF", key, value}
 	conn.Write([]byte(respEncodeStringArray(replConfReq)))
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 
 	responseBuffer := make([]byte, 1024)
 	_, err := conn.Read(responseBuffer)
@@ -66,8 +67,8 @@ func _handshakeSendReplConf(conn net.Conn, key, value string) {
 
 func _handshakeSendPsync(conn net.Conn) {
 	psyncReq := []string{"PSYNC", "?", "-1"}
-	time.Sleep(10 * time.Millisecond)
 	conn.Write([]byte(respEncodeStringArray(psyncReq)))
+	time.Sleep(100 * time.Millisecond)
 
 	responseBuffer := make([]byte, 1024)
 	_, err := conn.Read(responseBuffer)
@@ -79,4 +80,6 @@ func _handshakeSendPsync(conn net.Conn) {
 	// will send nothing, and wait to send the entire thing at once. This works for now.'
 
 	fmt.Println("handshake response (psync):", string(responseBuffer))
+	resp := respEncodeStringArray([]string{"REPLCONF", "ACK", "0"})
+	conn.Write([]byte(resp))
 }

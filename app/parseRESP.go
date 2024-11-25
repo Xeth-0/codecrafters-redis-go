@@ -11,6 +11,7 @@ import (
 // parsed requests. This is because sometimes more than one request might be bundled
 // into the same tcp request.
 func parseRESP(respBytes []byte) ([]RESP, error) {
+	fmt.Println(string(respBytes))
 	resps := make([]RESP, 0, 2)
 	for len(respBytes) > 0 {
 		resp, err := _parseRESP(respBytes)
@@ -49,7 +50,7 @@ func _parseRESP(respBytes []byte) (RESP, error) {
 		return _parseRESP_Array(respBytes)
 	}
 
-	return RESP{}, fmt.Errorf("error parsing RESP Request: IDK")
+	return RESP{}, fmt.Errorf("error parsing RESP Request: IDK: %s", string(respBytes))
 }
 
 func _parseRESP_Integer(respBytes []byte) (RESP, error) {

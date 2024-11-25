@@ -96,6 +96,7 @@ func handleConnection(conn net.Conn) {
 		if err != nil {
 			continue // discard and continue
 		}
+		fmt.Println("Incoming Request: ", string(readBuffer))
 
 		respRequests, err := parseRESP(readBuffer)
 		if err != nil {
