@@ -49,12 +49,14 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 
 		go handleConnection(masterConn) // start listening to propagation requests from master
-
-	} else {
-		CONFIG.masterReplOffset = 0
-		CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
-	}
-
+		
+		
+		} else {
+			CONFIG.masterReplOffset = 0
+			CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+		}
+		
+	time.Sleep(1000 * time.Millisecond)
 	// Read stored RDB.
 	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName) 
 
