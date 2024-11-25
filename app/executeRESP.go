@@ -41,7 +41,7 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 }
 
 func onWait()([]string, error){
-	return []string{respEncodeInteger(0)}, nil
+	return []string{respEncodeInteger(len(CONFIG.replicas))}, nil
 }
 
 func onPSync() ([]string, error) {
