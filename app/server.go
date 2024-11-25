@@ -56,7 +56,7 @@ func main() {
 			CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 		}
 		
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 	// Read stored RDB.
 	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName) 
 
@@ -89,64 +89,21 @@ func startServer() {
 //   and keep the connection alive.
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-	for {
-		readBuffer := make([]byte, 1024)
-		n, err := conn.Read(readBuffer) // Read the request.
-		if err != nil {
-			return
-		}
-		// Cut off the empty bytes at the end
-		readBuffer = readBuffer[:n]
-		fmt.Println("--Incoming bytes => ", readBuffer)
-		fmt.Println("--Incoming req => ", string(readBuffer))
 
-		// parse the resp request into a struct for easier manipulation
+	for {
+		readBuffer, err := readFromConnection(conn)
+		if err != nil {
+			continue // discard and continue
+		}
+
 		respRequests, err := parseRESP(readBuffer)
 		if err != nil {
-			fmt.Println("Error parsing request")
-			os.Exit(0)
+			logAndExit("Error parsing request", err)
 		}
 
-		for _, respRequest := range respRequests {
-			// Extract the commands sent from the resp request.
-			commands, _ := extractCommandFromRESP(respRequest)
-			if len(commands) < 1 {
-				continue
-			}
-
-			switch commands[0] {
-			case "set":
-				propagateCommands(readBuffer)
-			}
-			
-			// Construct and send the response for the resp request using the given commands.
-			responses, _ := executeResp(commands, conn)
-	
-			err = sendResponse(responses, conn)
-			if err != nil {
-				// TODO
-			}
-		}
+		processRequests(respRequests, readBuffer, conn)
 	}
 }
-
-// func handleConnection(conn net.Conn) {
-// 	defer conn.Close()
-
-// 	for {
-// 		readBuffer, err := readFromConnection(conn)
-// 		if err != nil {
-// 			continue // discard and continue
-// 		}
-
-// 		respRequests, err := parseRESP(readBuffer)
-// 		if err != nil {
-// 			logAndExit("Error parsing request", err)
-// 		}
-
-// 		processRequests(respRequests, readBuffer, conn)
-// 	}
-// }
 
 // Reads from the given connection into a buffer. returns the buffer.
 func readFromConnection(conn net.Conn) ([]byte, error) {
@@ -162,11 +119,13 @@ func readFromConnection(conn net.Conn) ([]byte, error) {
 func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn) {
 	for _, respRequest := range respRequests {
 		commands, _ := extractCommandFromRESP(respRequest)
+		if len(commands) < 1 {
+			continue
+		}
 
 		if commands[0] == "set" { // only one that propagates so far is set
 			propagateCommands(readBuffer)
 		}
-
 		responses, _ := executeResp(commands, conn)
 		if err := sendResponse(responses, conn); err != nil {
 			// TODO: Handle error
