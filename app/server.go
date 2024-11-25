@@ -55,8 +55,11 @@ func main() {
 			CONFIG.masterReplOffset = 0
 			CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 		}
-		
-	time.Sleep(2000 * time.Millisecond)
+	
+	// Giving the master a chance to sync up with this replica. 2 seconds might seem
+	//  excessive, it is, but I can't seem to avoid race conditions otherwise. 
+	time.Sleep(2000 * time.Millisecond) 
+
 	// Read stored RDB.
 	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName) 
 
