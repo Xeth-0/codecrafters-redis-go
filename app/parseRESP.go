@@ -18,6 +18,9 @@ func parseRESP(respBytes []byte) ([]RESP, error) {
 			return resps, err
 		}
 		resps = append(resps, resp)
+		if (len(resp.RawBytes) >= len(respBytes)){
+			break
+		}
 		respBytes = respBytes[len(resp.RawBytes):]
 	}
 	return resps, nil

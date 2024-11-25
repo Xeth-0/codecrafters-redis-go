@@ -34,7 +34,7 @@ func sendHandshake(conn net.Conn) error {
 
 func _handshakeSendPing(conn net.Conn, command []string, expectedResponse string) {
 	conn.Write([]byte(respEncodeStringArray(command)))
-	time.Sleep(1 * time.Second)
+	time.Sleep(10 * time.Millisecond)
 
 	responseBuffer := make([]byte, 1024)
 	_, err := conn.Read(responseBuffer)
@@ -51,6 +51,7 @@ func _handshakeSendPing(conn net.Conn, command []string, expectedResponse string
 func _handshakeSendReplConf(conn net.Conn, key, value string) {
 	replConfReq := []string{"REPLCONF", key, value}
 	conn.Write([]byte(respEncodeStringArray(replConfReq)))
+	time.Sleep(1000 * time.Millisecond)
 
 	responseBuffer := make([]byte, 1024)
 	_, err := conn.Read(responseBuffer)
@@ -77,5 +78,5 @@ func _handshakeSendPsync(conn net.Conn) {
 	// should also be checking that the response is the rdb, but sometimes the server
 	// will send nothing, and wait to send the entire thing at once. This works for now.'
 
-	// fmt.Println("handshake response (psync):", string(responseBuffer))
+	fmt.Println("handshake response (psync):", string(responseBuffer))
 }

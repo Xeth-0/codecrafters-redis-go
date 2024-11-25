@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 )
 
 var RDB = redisRDB{}
@@ -44,6 +45,8 @@ func main() {
 		CONFIG.masterPort = r[1]
 
 		masterConn := connectToMaster()
+
+		time.Sleep(100 * time.Millisecond)
 
 		go handleConnection(masterConn) // start listening to propagation requests from master
 
@@ -105,6 +108,10 @@ func handleConnection(conn net.Conn) {
 		for _, respRequest := range respRequests {
 			// Extract the commands sent from the resp request.
 			commands, _ := extractCommandFromRESP(respRequest)
+			if len(commands) < 1 {
+				continue
+			}
+
 			switch commands[0] {
 			case "set":
 				propagateCommands(readBuffer)
