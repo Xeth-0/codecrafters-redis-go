@@ -49,19 +49,17 @@ func main() {
 		time.Sleep(100 * time.Millisecond)
 
 		go handleConnection(masterConn) // start listening to propagation requests from master
-		
-		
-		} else {
-			CONFIG.masterReplOffset = 0
-			CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
-		}
-	
+	} else {
+		CONFIG.masterReplOffset = 0
+		CONFIG.masterReplID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+	}
+
 	// Giving the master a chance to sync up with this replica. 2 seconds might seem
-	//  excessive, it is, but I can't seem to avoid race conditions otherwise. 
-	time.Sleep(2000 * time.Millisecond) 
+	//  excessive, it is, but I can't seem to avoid race conditions otherwise.
+	time.Sleep(2000 * time.Millisecond)
 
 	// Read stored RDB.
-	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName) 
+	RDB = setupRDB(CONFIG.rdbDir, CONFIG.rdbDbFileName)
 
 	// Start the server and begin listening to tcp connections for clients.
 	startServer()
@@ -77,7 +75,7 @@ func startServer() {
 	defer listener.Close()
 
 	// Listen for connections.
-	for { 
+	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err)
@@ -88,8 +86,8 @@ func startServer() {
 	}
 }
 
-// Go-routine to accept and respond to new connections. Keeps running to listen to 
-//   and keep the connection alive.
+// Go-routine to accept and respond to new connections. Keeps running to listen to
+//	and keep the connection alive.
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
@@ -103,7 +101,6 @@ func handleConnection(conn net.Conn) {
 		if err != nil {
 			logAndExit("Error parsing request", err)
 		}
-
 		processRequests(respRequests, readBuffer, conn)
 	}
 }
@@ -136,6 +133,7 @@ func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn) {
 	}
 }
 
+// Send requests to the replica servers.
 func propagateCommands(request []byte) error {
 	var e error = nil
 	for _, replica := range CONFIG.replicas {
@@ -147,6 +145,7 @@ func propagateCommands(request []byte) error {
 	return e
 }
 
+// Write the responses to the client/server.
 func sendResponse(responses []string, conn net.Conn) error {
 	for _, response := range responses {
 		conn.Write([]byte(response))
