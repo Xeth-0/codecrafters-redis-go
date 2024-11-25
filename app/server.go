@@ -84,21 +84,60 @@ func startServer() {
 //   and keep the connection alive.
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-
 	for {
-		readBuffer, err := readFromConnection(conn)
+		readBuffer := make([]byte, 1024)
+		n, err := conn.Read(readBuffer) // Read the request.
 		if err != nil {
-			continue // discard and continue
+			return
 		}
+		// Cut off the empty bytes at the end
+		readBuffer = readBuffer[:n]
+		fmt.Println("--Incoming bytes => ", readBuffer)
+		fmt.Println("--Incoming req => ", string(readBuffer))
 
+		// parse the resp request into a struct for easier manipulation
 		respRequests, err := parseRESP(readBuffer)
 		if err != nil {
-			logAndExit("Error parsing request", err)
+			fmt.Println("Error parsing request")
+			os.Exit(0)
 		}
 
-		processRequests(respRequests, readBuffer, conn)
+		for _, respRequest := range respRequests {
+			// Extract the commands sent from the resp request.
+			commands, _ := extractCommandFromRESP(respRequest)
+			switch commands[0] {
+			case "set":
+				propagateCommands(readBuffer)
+			}
+			
+			// Construct and send the response for the resp request using the given commands.
+			responses, _ := executeResp(commands, conn)
+	
+			err = sendResponse(responses, conn)
+			if err != nil {
+				// TODO
+			}
+		}
 	}
 }
+
+// func handleConnection(conn net.Conn) {
+// 	defer conn.Close()
+
+// 	for {
+// 		readBuffer, err := readFromConnection(conn)
+// 		if err != nil {
+// 			continue // discard and continue
+// 		}
+
+// 		respRequests, err := parseRESP(readBuffer)
+// 		if err != nil {
+// 			logAndExit("Error parsing request", err)
+// 		}
+
+// 		processRequests(respRequests, readBuffer, conn)
+// 	}
+// }
 
 // Reads from the given connection into a buffer. returns the buffer.
 func readFromConnection(conn net.Conn) ([]byte, error) {
