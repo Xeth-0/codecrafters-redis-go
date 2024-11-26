@@ -129,20 +129,20 @@ func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn, isMa
 		if len(commands) < 1 {
 			continue
 		}
+
+		responses, _ := executeResp(commands, conn)
 		if isMasterConn {
 			if commands[0] == "ping" || commands[0] == "set" { // should send no response, so we break from the fn early
 				continue
 			}
-			} else {
+		} else {
 			if commands[0] == "set" { // only one that propagates so far is set
 				CONFIG.masterReplOffset += len(readBuffer)
 				propagateCommands(readBuffer)
-				time.Sleep(10 * time.Millisecond) // this is gonna need a second
 			}
 		}
-		responses, _ := executeResp(commands, conn)
 		if len(responses) < 1 { // nothing to respond to
-			continue
+			return
 		}
 		if err := sendResponse(responses, conn); err != nil {
 			// TODO: Handle error
