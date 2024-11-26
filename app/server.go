@@ -10,7 +10,7 @@ import (
 )
 
 var RDB = redisRDB{}
-var CONFIG = redisConfig{}
+var CONFIG = RedisConfig{}
 
 func main() {
 	if len(os.Args) < 4 {
@@ -137,8 +137,12 @@ func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn, isMa
 			}
 		} else {
 			if commands[0] == "set" { // only one that propagates so far is set
+				CONFIG.masterReplOffset += len(readBuffer)
 				propagateCommands(readBuffer)
 			}
+		}
+		if len(responses) < 1 { // nothing to respond to
+			return
 		}
 		if err := sendResponse(responses, conn); err != nil {
 			// TODO: Handle error
@@ -151,7 +155,8 @@ func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn, isMa
 func propagateCommands(request []byte) error {
 	var e error = nil
 	for _, replica := range CONFIG.replicas {
-		_, err := replica.Write(request)
+		bytesWritten, err := replica.conn.Write(request)
+		replica.offset += bytesWritten
 		if err != nil {
 			e = err
 		}

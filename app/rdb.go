@@ -299,7 +299,7 @@ func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int)
 	return rdb, index
 }
 
-func encodeRDB(rdb redisRDB) []byte {
+func encodeRDB(_ redisRDB) []byte {
 	// encoding an empty RDB to send to the replica server
 
 	// DEcode the hex representation of an empty rdb (until we write the encoding for the actual store here.)

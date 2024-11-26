@@ -1,8 +1,8 @@
 package main
 
 import (
-	"time"
 	"net"
+	"time"
 )
 
 // RESP Type signifier for comparison
@@ -59,7 +59,7 @@ type redisRDB struct {
 	// auxFields map[string]string // Auxiliary fields (string just because)
 }
 
-type redisConfig struct {
+type RedisConfig struct {
 	isSlave          bool
 	masterHost       string // info for the master if isSlave
 	masterPort       string
@@ -67,10 +67,16 @@ type redisConfig struct {
 	masterReplOffset int
 
 	// info map[string]map[string]any // nothing for now
-	replicas []net.Conn
+	replicas []Replica
 
 	rdbDir        string // rdb config options
 	rdbDbFileName string
 
 	port int // port to bind the server to
+}
+
+type Replica struct {
+	conn   net.Conn
+	offset int
+	// some way to track ACKs.
 }
