@@ -9,6 +9,7 @@ import (
 )
 
 var ackChan = make(chan bool)
+
 func executeResp(commands []string, conn net.Conn) (responses []string, err error) {
 	fmt.Println(commands[0])
 	switch commands[0] {
@@ -35,8 +36,26 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 		return onPSync()
 	case "wait":
 		return onWait(commands, ackChan)
+	case "type":
+		return onType(commands)
 	}
 	return nil, fmt.Errorf("error parsing request")
+}
+
+func onType(commands []string) ([]string, error) {
+	if len(commands) <= 1 {
+		return []string{}, fmt.Errorf("not enough arguments provided")
+	}
+	
+	args := commands[1:]
+	
+	key := args[0]
+    _, exists := RDB.databaseStore[key]
+	if !exists {
+		return []string{respEncodeString("none")}, nil
+	}
+
+	return []string{respEncodeString("string")}, nil
 }
 
 func onWait(commands []string, ackChan chan bool) ([]string, error) {
@@ -83,7 +102,6 @@ loop: // label just to break the loop
 		}
 	}
 
-
 	return []string{respEncodeInteger(acks)}, nil
 }
 
@@ -115,7 +133,7 @@ func onReplConf(commands []string, ackChan chan bool) ([]string, error) {
 			return []string{respEncodeStringArray(response)}, nil
 		}
 	case "ack":
-		if !CONFIG.isSlave { // master recieved ack. 
+		if !CONFIG.isSlave { // master recieved ack.
 			ackChan <- true
 		}
 		return []string{}, nil

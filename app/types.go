@@ -44,6 +44,7 @@ type Record struct {
 	value     string    // string value the key will correspond to
 	expires   bool      // will expire or not
 	expiresAt time.Time // time at which the value will be inaccessible. (Using a passive delete)
+	valueType string
 }
 
 // Config values for the RDB used.
