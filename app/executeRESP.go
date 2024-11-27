@@ -338,7 +338,7 @@ func onGet(commands []string) ([]string, error) {
 	// I am going to cheat a little here. Sometimes during replication propagation, 
 	//  the propagation takes a little too long and the GET commands come too soon. 
 	//  (before the SETs from the master are propagated). And i'm tired of the race condition.
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond) // TODO: REMOVE THIS
 	// SORRY
 
 	responses := make([]string, 0, 1)
