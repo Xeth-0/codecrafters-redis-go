@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var RDB = redisRDB{}
+var RDB = RedisRDB{}
 var CONFIG = RedisConfig{}
 
 func main() {

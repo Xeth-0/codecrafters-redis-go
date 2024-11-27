@@ -38,24 +38,70 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 		return onWait(commands, ackChan)
 	case "type":
 		return onType(commands)
+	case "xread":
+
+	case "xadd":
+		return onXADD(commands)
 	}
 	return nil, fmt.Errorf("error parsing request")
+}
+
+func onXADD(commands []string) ([]string, error) {
+	args := commands[1:]
+	if len(args) < 4 {
+		return []string{}, fmt.Errorf("not enough arguements for XADD")
+	}
+
+	streamKey := args[0]
+	entryId := args[1]
+
+	stream, exists := RDB.streamStore[streamKey]
+	if !exists {
+		RDB.streamStore[streamKey] = RedisStream{
+			entries:    make(map[string]*StreamEntry),
+			entryOrder: make([]string,0),
+		}
+		stream = RDB.streamStore[streamKey]
+	}
+
+	streamEntry := &StreamEntry{
+		id:     entryId,
+		fields: map[string]string{},
+	}
+	
+	for i := 2; i < len(args); i += 2 {
+		// there might be more than one key-value pairs here ig
+		key := args[i]
+		val := args[i+1]
+
+		streamEntry.fields[key] = val
+	}
+	
+	stream.entries[entryId] = streamEntry
+
+	return []string{respEncodeBulkString(entryId)}, nil
 }
 
 func onType(commands []string) ([]string, error) {
 	if len(commands) <= 1 {
 		return []string{}, fmt.Errorf("not enough arguments provided")
 	}
-	
+
 	args := commands[1:]
-	
 	key := args[0]
-    _, exists := RDB.databaseStore[key]
-	if !exists {
-		return []string{respEncodeString("none")}, nil
+
+	// check key-value store
+	_, exists := RDB.keyValueStore[key]
+	if exists {
+		return []string{respEncodeString("string")}, nil
 	}
 
-	return []string{respEncodeString("string")}, nil
+	// check stream store
+	_, exists = RDB.streamStore[key]
+	if exists{
+		return []string{respEncodeString("stream")}, nil
+	}	
+	return []string{respEncodeString("none")}, nil
 }
 
 func onWait(commands []string, ackChan chan bool) ([]string, error) {
@@ -193,8 +239,8 @@ func onKeys(commands []string) ([]string, error) {
 
 	if args[0] == "*" {
 		// return all keys
-		keys := make([]string, 0, len(RDB.databaseStore))
-		for k := range RDB.databaseStore {
+		keys := make([]string, 0, len(RDB.keyValueStore))
+		for k := range RDB.keyValueStore {
 			keys = append(keys, k)
 		}
 
@@ -250,7 +296,7 @@ func onEcho(commands []string) ([]string, error) {
 
 func onSet(commands []string) ([]string, error) {
 	// Set up the record
-	record := Record{}
+	record := RedisRecord{}
 
 	// parse the commands (set [key] [value] ...args)
 	key := commands[1]
@@ -282,7 +328,7 @@ func onSet(commands []string) ([]string, error) {
 		}
 	}
 
-	RDB.databaseStore[key] = record
+	RDB.keyValueStore[key] = record
 	response := respEncodeString("OK")
 	responses := []string{response}
 	return responses, nil
@@ -290,7 +336,7 @@ func onSet(commands []string) ([]string, error) {
 
 func onGet(commands []string) ([]string, error) {
 	responses := make([]string, 0, 1)
-	val, exists := RDB.databaseStore[commands[1]]
+	val, exists := RDB.keyValueStore[commands[1]]
 	if !exists {
 		return responses, fmt.Errorf("error handling request: GET - value not found")
 	}

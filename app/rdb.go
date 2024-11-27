@@ -40,15 +40,16 @@ const ( // Size encoding identifier
 
 // Loads, reads and returns a struct containing the information from the
 // .rdb file from the directory and filename provided.
-func setupRDB(dir string, dbFileName string) redisRDB {
+func setupRDB(dir string, dbFileName string) RedisRDB {
 	rdbConfig := RDBConfig{
 		dir:        dir,
 		dbFileName: dbFileName,
 	}
-	rdb := redisRDB{
+	rdb := RedisRDB{
 		config: rdbConfig,
 	}
-	rdb.databaseStore = make(map[string]Record)
+	rdb.keyValueStore = make(map[string]RedisRecord)
+	rdb.streamStore = make(map[string]RedisStream)
 
 	// need to load in the rdb specified by the dirname and dir.
 	data, exists := loadRDBFromFile(dir, dbFileName)
@@ -61,7 +62,7 @@ func setupRDB(dir string, dbFileName string) redisRDB {
 }
 
 // parses the rdb data in bits and extracts useful information into the redisRDB struct.
-func parseRDB(data []byte, rdb redisRDB) redisRDB {
+func parseRDB(data []byte, rdb RedisRDB) RedisRDB {
 	if len(data) < 9 {
 		return rdb
 	}
@@ -176,7 +177,7 @@ func loadRDBFromFile(dir string, dbFileName string) ([]byte, bool) {
 }
 
 // Parses the metadata section of the rdb
-func _parseRDB_MetaData(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int) {
+func _parseRDB_MetaData(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset int) {
 	index := 0
 	// Auxiliary Section: Reading them, not saving them for now
 	for len(data) > index && data[index] == opCodeAux {
@@ -204,7 +205,7 @@ func _parseRDB_MetaData(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int)
 
 // TODO: IMPLEMENT THIS (WHEN REQUIRED lol)
 // Long one, has multiple subsections. Doing nothing with all of them, just "parsing" and skipping past them.
-func _parseRDB_DatabaseInfo(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int) {
+func _parseRDB_DatabaseInfo(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset int) {
 	index := 0
 
 	// Database selector section. Not supporting more than one, so not doing anything with it rn.
@@ -247,7 +248,7 @@ func _parseRDB_DatabaseInfo(data []byte, rdb redisRDB) (_ redisRDB, indexOffset 
 }
 
 // parses the key-value pairs stored.
-func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int) {
+func _parseRDB_KeyValue(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset int) {
 	index := 0
 
 	for data[index] == 0x00 || data[index] == opCodeExpireTime || data[index] == opCodeExpireTimeMs {
@@ -284,7 +285,7 @@ func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int)
 		}
 		// fmt.Println("VALUE: ", value)
 		index += indexOffset
-		record := Record{
+		record := RedisRecord{
 			value: value,
 		}
 		if expiresFlag {
@@ -293,13 +294,13 @@ func _parseRDB_KeyValue(data []byte, rdb redisRDB) (_ redisRDB, indexOffset int)
 		}
 		// fmt.Println("KEY: ", key, "VALUE: ", value, "EXPIRY: ", timeStamp)
 
-		rdb.databaseStore[key] = record
+		rdb.keyValueStore[key] = record
 	}
 
 	return rdb, index
 }
 
-func encodeRDB(_ redisRDB) []byte {
+func encodeRDB(_ RedisRDB) []byte {
 	// encoding an empty RDB to send to the replica server
 
 	// DEcode the hex representation of an empty rdb (until we write the encoding for the actual store here.)
