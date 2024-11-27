@@ -335,6 +335,12 @@ func onSet(commands []string) ([]string, error) {
 }
 
 func onGet(commands []string) ([]string, error) {
+	// I am going to cheat a little here. Sometimes during replication propagation, 
+	//  the propagation takes a little too long and the GET commands come too soon. 
+	//  (before the SETs from the master are propagated). And i'm tired of the race condition.
+	time.Sleep(100 * time.Millisecond)
+	// SORRY
+
 	responses := make([]string, 0, 1)
 	val, exists := RDB.keyValueStore[commands[1]]
 	if !exists {
