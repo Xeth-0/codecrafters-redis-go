@@ -19,38 +19,47 @@ func registerReplica(replicaConn net.Conn) {
 }
 
 func handleStreamEntryID(stream RedisStream, newEntryID string) (string, error) {
-	// handle the entry ID generation/validation
-	if newEntryID == "*" { // generate the entire entryID
-
+	// Generate a full entry ID if newEntryID is "*"
+	if newEntryID == "*" {
+		// ID generation logic goes here if needed
+		return "", fmt.Errorf("ID generation not implemented")
 	}
 
-	splitEntryId := strings.Split(newEntryID, "-")
-	if len(splitEntryId) < 2 {
-		return "", fmt.Errorf("yeah idk how you end up here")
+	// Split the provided entry ID into timestamp and sequence parts
+	newIdParts := strings.Split(newEntryID, "-")
+	if len(newIdParts) < 2 {
+		return "", fmt.Errorf("invalid entry ID format: %s", newEntryID)
 	}
 
-	entryIdTimestamp := splitEntryId[0]
-	entryIdSeqNo := splitEntryId[1]
-	if entryIdTimestamp != "*" && entryIdSeqNo == "*" { // only autogenereate the entryID sequence number
-		// need to check if there is an entry with that entryID timestamp
-		for streamEntryID := range stream.entries {
-			splitStreamEntryID := strings.Split(streamEntryID, "-")
-			t := splitStreamEntryID[0]
+	timestamp := newIdParts[0]
+	sequence := newIdParts[1]
 
-			if t == entryIdTimestamp {
-				s, _ := strconv.Atoi(entryIdSeqNo)
-				return fmt.Sprintf("%s-%d", entryIdTimestamp, s+1), nil
+	// If only the sequence number is "*", generate it based on the timestamp
+	if timestamp != "*" && sequence == "*" {
+		for existingID := range stream.entries {
+			existingIdParts := strings.Split(existingID, "-")
+			existingTimestamp := existingIdParts[0]
+
+			if existingTimestamp == timestamp {
+				seqNum, _ := strconv.Atoi(existingIdParts[1])
+				return fmt.Sprintf("%s-%d", timestamp, seqNum+1), nil
 			}
 		}
 
+		// Handle special case for "0" timestamp
+		if timestamp == "0" {
+			return fmt.Sprintf("%s-%d", timestamp, 1), nil
+		}
+		return fmt.Sprintf("%s-%d", timestamp, 0), nil
 	}
 
-	// validate the entry ID
-	valid, err := validateStreamEntryID(newEntryID)
-	if !valid || err != nil {
-		return "", err
+	// Validate the full entry ID
+	isValid, err := validateStreamEntryID(newEntryID)
+	if !isValid || err != nil {
+		return "", fmt.Errorf("invalid entry ID: %s, error: %v", newEntryID, err)
 	}
 
+	// Return the valid entry ID
 	return newEntryID, nil
 }
 
