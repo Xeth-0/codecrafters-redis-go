@@ -96,6 +96,9 @@ func onXREAD(commands []string) ([]string, error) {
 		}
 
 		startID := startIDs[i]
+		if startID == "$"{ // we're waiting for new entries. easy way to do this
+			startID = RDB.streamStore.lastStreamEntryID
+		}
 
 		// Uhhh, just sleep? Kinda cheating but welp. works for now
 		if isBlocking {
