@@ -48,8 +48,8 @@ func setupRDB(dir string, dbFileName string) RedisRDB {
 	rdb := RedisRDB{
 		config: rdbConfig,
 	}
-	rdb.keyValueStore = make(map[string]RedisRecord)
-	rdb.streamStore = make(map[string]RedisStream)
+	rdb.keyValueStore = RedisKeyValueStore{db: make(map[string]RedisRecord)}
+	rdb.streamStore = RedisStreamStore{streams: make(map[string]RedisStream)}
 
 	// need to load in the rdb specified by the dirname and dir.
 	data, exists := loadRDBFromFile(dir, dbFileName)
@@ -294,7 +294,7 @@ func _parseRDB_KeyValue(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset int)
 		}
 		// fmt.Println("KEY: ", key, "VALUE: ", value, "EXPIRY: ", timeStamp)
 
-		rdb.keyValueStore[key] = record
+		rdb.keyValueStore.db[key] = record
 	}
 
 	return rdb, index

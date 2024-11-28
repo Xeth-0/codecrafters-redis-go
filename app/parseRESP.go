@@ -11,7 +11,6 @@ import (
 // parsed requests. This is because sometimes more than one request might be bundled
 // into the same tcp request.
 func parseRESP(respBytes []byte) ([]RESP, error) {
-	fmt.Println(string(respBytes))
 	resps := make([]RESP, 0, 2)
 	for len(respBytes) > 0 {
 		resp, err := _parseRESP(respBytes)

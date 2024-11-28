@@ -11,7 +11,7 @@ import (
 var ackChan = make(chan bool)
 
 func executeResp(commands []string, conn net.Conn) (responses []string, err error) {
-	fmt.Println(commands[0])
+	fmt.Println("COMMAND: ", commands[0])
 	switch commands[0] {
 	case "ping":
 		return onPing()
@@ -55,20 +55,23 @@ func onXADD(commands []string) ([]string, error) {
 	streamKey := args[0]
 	entryId := args[1]
 
-	stream, exists := RDB.streamStore[streamKey]
+	// validate the entry ID
+	validateStreamEntryID(entryId)
+
+	stream, exists := RDB.streamStore.streams[streamKey]
 	if !exists {
-		RDB.streamStore[streamKey] = RedisStream{
+		RDB.streamStore.streams[streamKey] = RedisStream{
 			entries:    make(map[string]*StreamEntry),
-			entryOrder: make([]string,0),
+			entryOrder: make([]string, 0),
 		}
-		stream = RDB.streamStore[streamKey]
+		stream = RDB.streamStore.streams[streamKey]
 	}
 
 	streamEntry := &StreamEntry{
 		id:     entryId,
 		fields: map[string]string{},
 	}
-	
+
 	for i := 2; i < len(args); i += 2 {
 		// there might be more than one key-value pairs here ig
 		key := args[i]
@@ -76,8 +79,9 @@ func onXADD(commands []string) ([]string, error) {
 
 		streamEntry.fields[key] = val
 	}
-	
+
 	stream.entries[entryId] = streamEntry
+	RDB.streamStore.lastStreamEntryID = entryId // storing this entry ID as the last one added.
 
 	return []string{respEncodeBulkString(entryId)}, nil
 }
@@ -91,16 +95,16 @@ func onType(commands []string) ([]string, error) {
 	key := args[0]
 
 	// check key-value store
-	_, exists := RDB.keyValueStore[key]
+	_, exists := RDB.keyValueStore.db[key]
 	if exists {
 		return []string{respEncodeString("string")}, nil
 	}
 
 	// check stream store
-	_, exists = RDB.streamStore[key]
-	if exists{
+	_, exists = RDB.streamStore.streams[key]
+	if exists {
 		return []string{respEncodeString("stream")}, nil
-	}	
+	}
 	return []string{respEncodeString("none")}, nil
 }
 
@@ -239,8 +243,8 @@ func onKeys(commands []string) ([]string, error) {
 
 	if args[0] == "*" {
 		// return all keys
-		keys := make([]string, 0, len(RDB.keyValueStore))
-		for k := range RDB.keyValueStore {
+		keys := make([]string, 0, len(RDB.keyValueStore.db))
+		for k := range RDB.keyValueStore.db {
 			keys = append(keys, k)
 		}
 
@@ -328,21 +332,21 @@ func onSet(commands []string) ([]string, error) {
 		}
 	}
 
-	RDB.keyValueStore[key] = record
+	RDB.keyValueStore.db[key] = record
 	response := respEncodeString("OK")
 	responses := []string{response}
 	return responses, nil
 }
 
 func onGet(commands []string) ([]string, error) {
-	// I am going to cheat a little here. Sometimes during replication propagation, 
-	//  the propagation takes a little too long and the GET commands come too soon. 
+	// I am going to cheat a little here. Sometimes during replication propagation,
+	//  the propagation takes a little too long and the GET commands come too soon.
 	//  (before the SETs from the master are propagated). And i'm tired of the race condition.
-	time.Sleep(10 * time.Millisecond) // TODO: REMOVE THIS
+	time.Sleep(10 * time.Millisecond) // TODO: REMOVE THIS without breaking the rest.
 	// SORRY
 
 	responses := make([]string, 0, 1)
-	val, exists := RDB.keyValueStore[commands[1]]
+	val, exists := RDB.keyValueStore.db[commands[1]]
 	if !exists {
 		return responses, fmt.Errorf("error handling request: GET - value not found")
 	}
@@ -355,14 +359,4 @@ func onGet(commands []string) ([]string, error) {
 	response := respEncodeBulkString(val.value)
 	responses = append(responses, response)
 	return responses, nil
-}
-
-func registerReplica(replicaConn net.Conn) {
-	CONFIG.replicas = append(
-		CONFIG.replicas,
-		Replica{
-			conn:   replicaConn,
-			offset: 0,
-		},
-	)
 }

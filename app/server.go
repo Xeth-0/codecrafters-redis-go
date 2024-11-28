@@ -132,7 +132,7 @@ func processRequests(respRequests []RESP, readBuffer []byte, conn net.Conn, isMa
 
 		responses, _ := executeResp(commands, conn)
 		if isMasterConn {
-			if commands[0] == "ping" || commands[0] == "set" { // should send no response, so we break from the fn early
+			if commands[0] == "ping" || commands[0] == "set" { // should send no response
 				continue
 			}
 		} else {

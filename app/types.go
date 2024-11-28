@@ -65,15 +65,23 @@ type StreamEntry struct {
 // Single redis stream.
 type RedisStream struct {
 	entries    map[string]*StreamEntry // Map of entries by ID
-	lastID     string                  // ID of the last inerted entry. This will let us check quickly for ops that require the last entry.
 	entryOrder []string                // Maintain the order of entry.
+}
+
+type RedisStreamStore struct {
+	streams           map[string]RedisStream
+	lastStreamEntryID string // ID of the last inerted entry. This will let us check quickly for ops that require the last entry.
+}
+
+type RedisKeyValueStore struct {
+	db map[string]RedisRecord
 }
 
 // RDB in-mem representation.
 type RedisRDB struct {
 	config        RDBConfig
-	keyValueStore map[string]RedisRecord // stores the key-value pairs (get/set)
-	streamStore   map[string]RedisStream // stores redis-streams, key is the stream name(key) (xadd/xread)
+	keyValueStore RedisKeyValueStore // stores the key-value pairs (get/set)
+	streamStore   RedisStreamStore   // stores redis-streams, key is the stream name(key) (xadd/xread)
 	// auxFields map[string]string // Auxiliary fields (string just because)
 }
 
