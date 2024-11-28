@@ -30,3 +30,7 @@ func respEncodeStringArray(strs []string) string {
 func respEncodeInteger(num int) string {
 	return fmt.Sprintf(":%d\r\n", num)
 }
+
+func respEncodeError(err string) string {
+	return fmt.Sprintf("-%s\r\n", err)
+}

@@ -56,7 +56,12 @@ func onXADD(commands []string) ([]string, error) {
 	entryId := args[1]
 
 	// validate the entry ID
-	validateStreamEntryID(entryId)
+	valid, err := validateStreamEntryID(entryId)
+	if !valid || err != nil {
+		fmt.Println(err)
+		response := respEncodeError(err.Error())
+		return []string{response}, err
+	}
 
 	stream, exists := RDB.streamStore.streams[streamKey]
 	if !exists {
@@ -120,14 +125,15 @@ func onWait(commands []string, ackChan chan bool) ([]string, error) {
 		respEncodeStringArray([]string{"REPLCONF", "GETACK", "*"}),
 	)
 
+	// When all the replicas are in sync, reply should be the total count of replicas. But the timeout the tests give is so small that the replicas will not reply in time, and it'll timeout before getting any acks.
 	// Yes, this is a cheap hack. I do not have time to think of sth better unfortunately.
 	// TODO: Fix this ugly shit.
 	if CONFIG.masterReplOffset == 0 {
 		return []string{respEncodeInteger(len(CONFIG.replicas))}, nil
 	}
 
-	// The replicas should have their own connections going in another goroutine,
-	//   when the ACK is recieved, will use a channel to count them.
+	// The replicas should have their own connections going in another goroutine. Going to send the replconf get ack from here, and expect the reply in the goroutine that handles the connection to the replica in normal flow.
+	// When an ack is recieved, the ackChan channel is updated, and this will increment the acks counter.
 	acks := 0
 	for _, replica := range CONFIG.replicas {
 		go func(conn net.Conn) {
@@ -143,9 +149,10 @@ func onWait(commands []string, ackChan chan bool) ([]string, error) {
 loop: // label just to break the loop
 	for acks < someNumber { // loop and block until...
 		select {
-		case <-ackChan: // recieved an ack response for a replica(on it's goroutine)
+		case <-ackChan: // recieved an ack response for a replica (on it's connection goroutine)
 			acks++
 			fmt.Printf("Waiting: Recieved ack - %d", acks)
+
 		case <-timerChan: // timer timed out
 			fmt.Println("Waiting: timed out.")
 			break loop
@@ -182,6 +189,7 @@ func onReplConf(commands []string, ackChan chan bool) ([]string, error) {
 			response := []string{"REPLCONF", "ACK", offset}
 			return []string{respEncodeStringArray(response)}, nil
 		}
+
 	case "ack":
 		if !CONFIG.isSlave { // master recieved ack.
 			ackChan <- true
@@ -273,6 +281,7 @@ func onConfig(commands []string) ([]string, error) {
 			response += respEncodeBulkString("dir")
 			response += respEncodeBulkString(RDB.config.dir)
 			count += 2
+			
 		case "dbfilename":
 			response += respEncodeBulkString("dbfilename")
 			response += respEncodeBulkString(RDB.config.dbFileName)
