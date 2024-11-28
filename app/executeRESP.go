@@ -42,8 +42,55 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 		return onXRANGE(commands)
 	case "xadd":
 		return onXADD(commands)
+	case "xread":
+		return onXREAD(commands)
 	}
 	return nil, fmt.Errorf("error parsing request")
+}
+
+func onXREAD(commands []string) ([]string, error) {
+	args := commands[1:]
+	if len(args) < 3 {
+		return []string{}, fmt.Errorf("not enough args for XRANGE")
+	}
+	if args[0] != "streams" {
+		return []string{}, fmt.Errorf("xread: incorrect format")
+	}
+
+	streamKey := args[1]
+	stream, exists := RDB.streamStore.streams[streamKey]
+	if !exists {
+		fmt.Println("xrange: stream not found")
+		return []string{}, fmt.Errorf("")
+	}
+
+	startID := args[2]
+	// gather the entries
+	entries := make([]StreamEntry, 0)
+	for _, entryID := range stream.entryOrder {
+		startIdIsValid := (startID == "-") || (entryID > startID)
+		if startIdIsValid {
+			entries = append(entries, *stream.entries[entryID])
+		}
+	}
+
+	// construct the response
+	encodedStreamKey := respEncodeBulkString(streamKey)
+	response := fmt.Sprintf("*1\r\n*2\r\n%s*%d\r\n", encodedStreamKey, len(entries))
+	for _, entry := range entries {
+		encodedID := respEncodeBulkString(entry.id)
+
+		entryVals := make([]string, 0)
+		for _, entryKey := range entry.keys {
+			entryVals = append(entryVals, entryKey)
+			entryVals = append(entryVals, entry.fields[entryKey])
+		}
+
+		encodedVals := respEncodeStringArray(entryVals)
+		response += fmt.Sprintf("*2\r\n%s%s", encodedID, encodedVals)
+	}
+	fmt.Println("XreadResponse: ", response)
+	return []string{response}, nil
 }
 
 func onXRANGE(commands []string) ([]string, error) {
