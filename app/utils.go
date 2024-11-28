@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // registers the replica that is now connected to (this) master server.
@@ -22,7 +23,8 @@ func handleStreamEntryID(stream RedisStream, newEntryID string) (string, error) 
 	// Generate a full entry ID if newEntryID is "*"
 	if newEntryID == "*" {
 		// ID generation logic goes here if needed
-		return "", fmt.Errorf("ID generation not implemented")
+		timestamp := time.Now().UTC().UnixMilli()
+		newEntryID = fmt.Sprintf("%d-*", timestamp) // yes this is a cheap trick. proud of it tho
 	}
 
 	// Split the provided entry ID into timestamp and sequence parts
