@@ -41,8 +41,8 @@ func main() {
 		CONFIG.isSlave = true
 		r := strings.Split(replicaOf, " ")
 		if len(r) < 2 {
-			fmt.Println("invalid replica flag. try agian")
-			os.Exit(0)
+			err := fmt.Errorf("invalid replica flag. try agian")
+			logAndExit("error during startup", err)
 		}
 		CONFIG.masterHost = r[0]
 		CONFIG.masterPort = r[1]
@@ -69,8 +69,8 @@ func main() {
 func startServer() {
 	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", CONFIG.port))
 	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
-		os.Exit(1)
+		err := fmt.Errorf("failed to bind to port 6379")
+		logAndExit("error during startup", err)
 	}
 	defer listener.Close()
 
@@ -79,6 +79,7 @@ func startServer() {
 		conn, err := listener.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err)
+			fmt.Println("Proceeding...")
 			continue // discard current connection and continue
 		}
 

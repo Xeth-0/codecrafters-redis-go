@@ -183,28 +183,24 @@ func _parseRDB_MetaData(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset int)
 	for len(data) > index && data[index] == opCodeAux {
 		index++ // skip the opcode
 
-		key, offset, err := decodeStringEncoding(data[index:])
+		_, offset, err := decodeStringEncoding(data[index:]) // key
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			logAndExit("error reading rdb file", err)
 		}
 		index += offset // move past the key
 
-		value, offset, err := decodeStringEncoding(data[index:])
+		_, offset, err = decodeStringEncoding(data[index:]) // value
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			logAndExit("error reading rdb file", err)
 		}
 		index += offset // move past the value
-
-		fmt.Println("key value found: ", key, value) // Doing nothing with it for now
 	}
 
 	return rdb, index
 }
 
 // TODO: IMPLEMENT THIS (WHEN REQUIRED lol)
-// Long one, has multiple subsections. Doing nothing with all of them, just "parsing" and skipping past them.
+// This rdb file section has multiple subsections. Doing nothing with all of them, just "parsing" and skipping past them.
 func _parseRDB_DatabaseInfo(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset int) {
 	index := 0
 
@@ -214,12 +210,9 @@ func _parseRDB_DatabaseInfo(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset 
 
 		_, valLength, err := decodeSizeEncoding(data[index:])
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			logAndExit("error reading rdb file: database info", err)
 		}
 		index += valLength
-
-		// fmt.Println("Database Index: ", val)
 	}
 
 	// Resize subsection: No idea agian.
@@ -228,20 +221,15 @@ func _parseRDB_DatabaseInfo(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset 
 
 		_, indexOffset, err := decodeSizeEncoding(data[index:])
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			logAndExit("error reading rdb file: database info", err)
 		}
 
-		// fmt.Println("RESIZEDB VAL: ", val)
 		index += indexOffset
 
 		_, indexOffset, err = decodeSizeEncoding(data[index:])
-		// fmt.Println("RESIZEDB VAL: ", val)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			logAndExit("error reading rdb file: database info", err)
 		}
-
 		index += indexOffset
 	}
 	return rdb, index
@@ -255,12 +243,11 @@ func _parseRDB_KeyValue(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset int)
 		timeStamp := time.Time{}
 		expiresFlag := false
 
-		if data[index] == opCodeExpireTime || data[index] == opCodeExpireTimeMs { // handle the expiry timestamp
-			// fmt.Println(data[index])
+		// parse the expiry timestamp (if exists)
+		if data[index] == opCodeExpireTime || data[index] == opCodeExpireTimeMs {
 			t, offset, err := decodeExpiryTimestamp(data[index:])
 			if err != nil {
-				fmt.Println("error parsing key-value pair: error parsing timestamp")
-				os.Exit(0)
+				logAndExit("error reading rdb file: key-value pairs", err)
 			}
 
 			timeStamp = t
@@ -268,31 +255,31 @@ func _parseRDB_KeyValue(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset int)
 			index += offset
 		}
 
+		// parse the key
 		index++
 		key, indexOffset, err := decodeStringEncoding(data[index:])
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			logAndExit("error reading rdb file: key-value pairs", err)
 		}
 
-		// fmt.Println("KEY: ", key)
+		// parse the value
 		index += indexOffset
-
 		value, indexOffset, err := decodeStringEncoding(data[index:])
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			logAndExit("error reading rdb file: key-value pairs", err)
 		}
-		// fmt.Println("VALUE: ", value)
+
+		// record the key-value pair
 		index += indexOffset
 		record := RedisRecord{
 			value: value,
 		}
+
+		// set the expiry values
 		if expiresFlag {
 			record.expiresAt = timeStamp
 			record.expires = true
 		}
-		// fmt.Println("KEY: ", key, "VALUE: ", value, "EXPIRY: ", timeStamp)
 
 		rdb.keyValueStore.db[key] = record
 	}
@@ -303,7 +290,7 @@ func _parseRDB_KeyValue(data []byte, rdb RedisRDB) (_ RedisRDB, indexOffset int)
 func encodeRDB(_ RedisRDB) []byte {
 	// encoding an empty RDB to send to the replica server
 
-	// DEcode the hex representation of an empty rdb (until we write the encoding for the actual store here.)
+	// Decode the hex representation of an empty rdb (until we write the encoding for the actual store here.)
 	emptyDB, _ := hex.DecodeString("524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2")
 	return emptyDB
 }

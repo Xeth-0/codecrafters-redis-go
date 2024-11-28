@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -70,8 +69,7 @@ func _parseRESP_Integer(respBytes []byte) (RESP, error) {
 			intStr := string(respBytes[start:end])
 			val, err := strconv.Atoi(intStr)
 			if err != nil {
-				fmt.Println("Error parsing int: Error parsing array of ints")
-				os.Exit(0)
+				return RESP{}, fmt.Errorf("error parsing int: Error parsing array of ints")
 			}
 
 			resp.respData.Int = sign * val
@@ -116,7 +114,6 @@ func _parseRESP_Array(respBytes []byte) (RESP, error) {
 	// Determine the array length from the request.
 	clrf, err := findNextCLRF(respBytes)
 	if err != nil {
-		fmt.Println("error parsing array: CLRF for length identifier not found")
 		return RESP{}, err
 	}
 
@@ -137,13 +134,11 @@ func _parseRESP_Array(respBytes []byte) (RESP, error) {
 	for ; arrayLength >= 1; arrayLength-- {
 		if p >= len(respBytes) {
 			err := fmt.Errorf("error parsing array: Unexpected end of resp request")
-			fmt.Println(err)
 			return RESP{}, err
 		}
 
 		subResp, err := _parseRESP(respBytes[p:])
 		if err != nil {
-			fmt.Println("Error parsing array: Error parsing array elements.")
 			return RESP{}, err
 		}
 
@@ -205,5 +200,5 @@ func findNextCLRF(b []byte) (int, error) {
 			return clrf, nil
 		}
 	}
-	return -1, fmt.Errorf("no crlf found")
+	return -1, fmt.Errorf("error parsing array: CLRF for length identifier not found")
 }

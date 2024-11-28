@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 	"time"
 )
@@ -96,7 +95,7 @@ func onXREAD(commands []string) ([]string, error) {
 		}
 
 		startID := startIDs[i]
-		if startID == "$"{ // we're waiting for new entries. easy way to do this
+		if startID == "$" { // we're waiting for new entries. easy way to do this
 			startID = RDB.streamStore.lastStreamEntryID
 		}
 
@@ -154,7 +153,7 @@ func onXREAD(commands []string) ([]string, error) {
 		}
 	}
 
-	fmt.Println("XREAD Response: ", response)
+	// fmt.Println("XREAD Response: ", response)
 	return []string{response}, nil
 }
 
@@ -170,8 +169,7 @@ func onXRANGE(commands []string) ([]string, error) {
 
 	stream, exists := RDB.streamStore.streams[streamKey]
 	if !exists {
-		fmt.Println("xrange: stream not found")
-		return []string{}, fmt.Errorf("")
+		return []string{}, fmt.Errorf("xrange: stream not found")
 	}
 
 	// gather the entries
@@ -244,7 +242,7 @@ func onXADD(commands []string) ([]string, error) {
 	stream.entries[entryId] = streamEntry
 	stream.entryOrder = append(stream.entryOrder, entryId)
 	RDB.streamStore.lastStreamEntryID = entryId // storing this entry ID as the last one added.
-	
+
 	// update the channel
 	select { // non blocking update
 	case stream.blockCh <- entryId:
@@ -311,6 +309,7 @@ func onWait(commands []string, ackChan chan bool) ([]string, error) {
 	// Handling the timer.
 	timerChan := time.After(time.Duration(timeoutDuration) * time.Millisecond)
 
+	fmt.Println("Waiting ...")
 loop: // label just to break the loop
 	for acks < someNumber { // loop and block until...
 		select {
@@ -410,8 +409,7 @@ func onKeys(commands []string) ([]string, error) {
 	responses := make([]string, 0, 3)
 
 	if len(args) < 1 {
-		fmt.Println("Not enough args in command")
-		os.Exit(0)
+		return []string{}, fmt.Errorf("Not enough args in command")
 	}
 
 	if args[0] == "*" {
@@ -486,8 +484,7 @@ func onSet(commands []string) ([]string, error) {
 		case "px": // set a timeout on the record
 			t, err := strconv.ParseInt(args[i+1], 0, 0)
 			if err != nil {
-				fmt.Println("Error parsing resp: SET Command: Timeout (ms) is invalid.")
-				os.Exit(0)
+				return []string{}, fmt.Errorf("error parsing resp: SET Command: Timeout (ms) is invalid")
 			}
 
 			timeout := time.Duration(t) * time.Millisecond
@@ -497,7 +494,7 @@ func onSet(commands []string) ([]string, error) {
 		case "ex": // set timeout in seconds
 			t, err := strconv.ParseInt(args[i+1], 0, 0)
 			if err != nil {
-				fmt.Println("error parsing resp: SET Command: Timeout (s) is invalid")
+				return []string{}, fmt.Errorf("error parsing resp: SET Command: Timeout (s) is invalid")
 			}
 
 			timeout := time.Duration(t)
