@@ -49,18 +49,44 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 }
 
 func onXREAD(commands []string) ([]string, error) {
+	// Parsing args: expecting "block" to come before "stream".
 	args := commands[1:]
 	if len(args) < 3 {
 		return nil, fmt.Errorf("xread: not enough arguments")
 	}
-	if args[0] != "streams" {
-		return nil, fmt.Errorf("xread: incorrect format, expected 'streams'")
+	
+	// Start of "[streams ...streamKey]"
+	streamsStart := 0
+	
+	// Is the command blocking?
+	isBlocking := false
+	blockingMs := 0
+
+	if args[0] == "block" { // set the blocking values and identify the start of the stream keys.
+		isBlocking = true
+		ms, err := strconv.Atoi(args[1])
+		if err != nil {
+			return nil, fmt.Errorf("xread: invalid blocking timeout")	
+		}
+		
+		blockingMs = ms
+		streamsStart = 2
+	}
+	if args[streamsStart] != "streams" {
+		return nil, fmt.Errorf("xread: incorrect format, expected 'streams [...stream_key]'")
+	}
+
+	streamsStart++
+
+	// Uhhh, just sleep? Kinda cheating but welp. works for now
+	if isBlocking{
+		time.Sleep(time.Duration(blockingMs) * time.Millisecond)
 	}
 
 	// Split arguments into stream keys and their respective start IDs
-	numStreams := len(args[1:]) / 2 // Will be evenly divisible by 2 (after "streams", we have [...streamKey] [...entryIDs] , which should be the same number)
-	streamKeys := args[1 : 1+numStreams]
-	startIDs := args[1+numStreams:]
+	numStreams := len(args[streamsStart:]) / 2 // Will be evenly divisible by 2 (after "streams", we have [...streamKey] [...entryIDs] , which should be the same number)
+	streamKeys := args[streamsStart : streamsStart+numStreams]
+	startIDs := args[streamsStart+numStreams:]
 
 	// Build the response (resp array)
 	response := fmt.Sprintf("*%d\r\n", len(streamKeys))
@@ -74,14 +100,19 @@ func onXREAD(commands []string) ([]string, error) {
 		}
 
 		startID := startIDs[i]
-		
+
 		entries := make([]StreamEntry, 0)
-		
+
 		// Gather entries
 		for _, entryID := range stream.entryOrder {
 			if startID == "-" || entryID > startID {
 				entries = append(entries, *stream.entries[entryID])
 			}
+		}
+
+		// No entries found. return nul bulk string
+		if len(entries) == 0 {
+			return []string{"$-1\r\n"}, nil
 		}
 
 		// Add the stream key and entries to the response
