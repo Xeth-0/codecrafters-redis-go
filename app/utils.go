@@ -3,10 +3,17 @@ package main
 import (
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// Logs the error and message and exits with os.Exit(0).
+func logAndExit(message string, err error) {
+	fmt.Println(message, ":", err)
+	os.Exit(0)
+}
 
 // registers the replica that is now connected to (this) master server.
 func registerReplica(replicaConn net.Conn) {

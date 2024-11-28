@@ -19,9 +19,9 @@ func main() {
 
 	// Get the directory and filename for the rdb store.
 	dirFlag := flag.String("dir", "dump", "rdb store directory")
-	replicaOfFlag := flag.String("replicaof", "master", "master or slave")
 	dbFileNameFlag := flag.String("dbfilename", "dump.rdb", "rdb store filename")
 	portFlag := flag.Int("port", 6379, "the port that this redis server will use to run")
+	replicaOfFlag := flag.String("replicaof", "master", "if slave, address and port of master")
 
 	flag.Parse()
 
@@ -171,10 +171,4 @@ func sendResponse(responses []string, conn net.Conn) error {
 		conn.Write([]byte(response))
 	}
 	return nil
-}
-
-// Logs the error and message and exits with os.Exit(0).
-func logAndExit(message string, err error) {
-	fmt.Println(message, ":", err)
-	os.Exit(0)
 }

@@ -54,14 +54,15 @@ func onXREAD(commands []string) ([]string, error) {
 		return nil, fmt.Errorf("xread: not enough arguments")
 	}
 
-	// Start of "[streams ...streamKey]"
+	// Pointer to find start of "[streams ...streamKey]"
 	streamsStart := 0
 
 	// Is the command blocking?
 	isBlocking := false
 	blockingMs := 0
 
-	if args[0] == "block" { // set the blocking values and identify the start of the stream keys.
+	// set the blocking values and identify the start of the stream keys.
+	if args[0] == "block" {
 		isBlocking = true
 		ms, err := strconv.Atoi(args[1])
 		if err != nil {
@@ -71,6 +72,7 @@ func onXREAD(commands []string) ([]string, error) {
 		blockingMs = ms
 		streamsStart = 2
 	}
+
 	if args[streamsStart] != "streams" {
 		return nil, fmt.Errorf("xread: incorrect format, expected 'streams [...stream_key]'")
 	}
@@ -86,9 +88,8 @@ func onXREAD(commands []string) ([]string, error) {
 	// Build the response (resp array)
 	response := fmt.Sprintf("*%d\r\n", len(streamKeys))
 
+	// for each stream to be read...
 	for i, streamKey := range streamKeys {
-		encodedStreamKey := respEncodeBulkString(streamKey)
-
 		stream, exists := RDB.streamStore.streams[streamKey]
 		if !exists {
 			return nil, fmt.Errorf("xread: stream '%s' not found", streamKey)
@@ -99,7 +100,6 @@ func onXREAD(commands []string) ([]string, error) {
 			startID = RDB.streamStore.lastStreamEntryID
 		}
 
-		// Uhhh, just sleep? Kinda cheating but welp. works for now
 		if isBlocking {
 			var timeChan <-chan time.Time = nil
 			if blockingMs != 0 {
@@ -114,41 +114,41 @@ func onXREAD(commands []string) ([]string, error) {
 				case <-timeChan:
 					break timeloop
 				case newEntry := <-updateChan:
+					// Only breaking the loop if it's a new entry that satisfies the startID< condition
 					if startID < newEntry {
-						stream, _ = RDB.streamStore.streams[streamKey]
+						stream = RDB.streamStore.streams[streamKey]
 						break timeloop
 					}
 				}
 			}
 		}
 
-		entries := make([]StreamEntry, 0)
-
 		// Gather entries
+		entries := make([]StreamEntry, 0)
 		for _, entryID := range stream.entryOrder {
 			if startID == "-" || entryID > startID {
 				entries = append(entries, *stream.entries[entryID])
 			}
 		}
 
-		// No entries found. return nul bulk string
+		// No entries found. return null bulk string
 		if len(entries) == 0 {
 			return []string{"$-1\r\n"}, nil
 		}
 
 		// Add the stream key and entries to the response
+		encodedStreamKey := respEncodeBulkString(streamKey)
 		response += fmt.Sprintf("*2\r\n%s*%d\r\n", encodedStreamKey, len(entries))
 		for _, entry := range entries {
-			encodedEntryID := respEncodeBulkString(entry.id)
-
-			// Encode entry fields as a flat array
+			// Gather the entry key-value pairs
 			entryFields := make([]string, 0, len(entry.keys)*2)
 			for _, key := range entry.keys {
 				entryFields = append(entryFields, key, entry.fields[key])
 			}
+			
+			// Add encoded values to the response
+			encodedEntryID := respEncodeBulkString(entry.id)
 			encodedEntryFields := respEncodeStringArray(entryFields)
-
-			// Add encoded entry to the response
 			response += fmt.Sprintf("*2\r\n%s%s", encodedEntryID, encodedEntryFields)
 		}
 	}
@@ -409,7 +409,7 @@ func onKeys(commands []string) ([]string, error) {
 	responses := make([]string, 0, 3)
 
 	if len(args) < 1 {
-		return []string{}, fmt.Errorf("Not enough args in command")
+		return []string{}, fmt.Errorf("not enough args in command")
 	}
 
 	if args[0] == "*" {
