@@ -51,45 +51,57 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 func onXREAD(commands []string) ([]string, error) {
 	args := commands[1:]
 	if len(args) < 3 {
-		return []string{}, fmt.Errorf("not enough args for XRANGE")
+		return nil, fmt.Errorf("xread: not enough arguments")
 	}
 	if args[0] != "streams" {
-		return []string{}, fmt.Errorf("xread: incorrect format")
+		return nil, fmt.Errorf("xread: incorrect format, expected 'streams'")
 	}
 
-	streamKey := args[1]
-	stream, exists := RDB.streamStore.streams[streamKey]
-	if !exists {
-		fmt.Println("xrange: stream not found")
-		return []string{}, fmt.Errorf("")
-	}
+	// Split arguments into stream keys and their respective start IDs
+	numStreams := len(args[1:]) / 2 // Will be evenly divisible by 2 (after "streams", we have [...streamKey] [...entryIDs] , which should be the same number)
+	streamKeys := args[1 : 1+numStreams]
+	startIDs := args[1+numStreams:]
 
-	startID := args[2]
-	// gather the entries
-	entries := make([]StreamEntry, 0)
-	for _, entryID := range stream.entryOrder {
-		startIdIsValid := (startID == "-") || (entryID > startID)
-		if startIdIsValid {
-			entries = append(entries, *stream.entries[entryID])
+	// Build the response (resp array)
+	response := fmt.Sprintf("*%d\r\n", len(streamKeys))
+
+	for i, streamKey := range streamKeys {
+		encodedStreamKey := respEncodeBulkString(streamKey)
+
+		stream, exists := RDB.streamStore.streams[streamKey]
+		if !exists {
+			return nil, fmt.Errorf("xread: stream '%s' not found", streamKey)
+		}
+
+		startID := startIDs[i]
+		
+		entries := make([]StreamEntry, 0)
+		
+		// Gather entries
+		for _, entryID := range stream.entryOrder {
+			if startID == "-" || entryID > startID {
+				entries = append(entries, *stream.entries[entryID])
+			}
+		}
+
+		// Add the stream key and entries to the response
+		response += fmt.Sprintf("*2\r\n%s*%d\r\n", encodedStreamKey, len(entries))
+		for _, entry := range entries {
+			encodedEntryID := respEncodeBulkString(entry.id)
+
+			// Encode entry fields as a flat array
+			entryFields := make([]string, 0, len(entry.keys)*2)
+			for _, key := range entry.keys {
+				entryFields = append(entryFields, key, entry.fields[key])
+			}
+			encodedEntryFields := respEncodeStringArray(entryFields)
+
+			// Add encoded entry to the response
+			response += fmt.Sprintf("*2\r\n%s%s", encodedEntryID, encodedEntryFields)
 		}
 	}
 
-	// construct the response
-	encodedStreamKey := respEncodeBulkString(streamKey)
-	response := fmt.Sprintf("*1\r\n*2\r\n%s*%d\r\n", encodedStreamKey, len(entries))
-	for _, entry := range entries {
-		encodedID := respEncodeBulkString(entry.id)
-
-		entryVals := make([]string, 0)
-		for _, entryKey := range entry.keys {
-			entryVals = append(entryVals, entryKey)
-			entryVals = append(entryVals, entry.fields[entryKey])
-		}
-
-		encodedVals := respEncodeStringArray(entryVals)
-		response += fmt.Sprintf("*2\r\n%s%s", encodedID, encodedVals)
-	}
-	fmt.Println("XreadResponse: ", response)
+	fmt.Println("XREAD Response: ", response)
 	return []string{response}, nil
 }
 
