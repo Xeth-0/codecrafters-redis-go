@@ -54,15 +54,7 @@ func onXADD(commands []string) ([]string, error) {
 
 	streamKey := args[0]
 	entryId := args[1]
-
-	// validate the entry ID
-	valid, err := validateStreamEntryID(entryId)
-	if !valid || err != nil {
-		fmt.Println(err)
-		response := respEncodeError(err.Error())
-		return []string{response}, err
-	}
-
+	
 	stream, exists := RDB.streamStore.streams[streamKey]
 	if !exists {
 		RDB.streamStore.streams[streamKey] = RedisStream{
@@ -71,6 +63,13 @@ func onXADD(commands []string) ([]string, error) {
 		}
 		stream = RDB.streamStore.streams[streamKey]
 	}
+
+	entryId, err := handleStreamEntryID(stream, entryId)
+	if err != nil {
+		response := respEncodeError(err.Error())
+		return []string{response}, nil
+	}
+
 
 	streamEntry := &StreamEntry{
 		id:     entryId,
@@ -281,7 +280,7 @@ func onConfig(commands []string) ([]string, error) {
 			response += respEncodeBulkString("dir")
 			response += respEncodeBulkString(RDB.config.dir)
 			count += 2
-			
+
 		case "dbfilename":
 			response += respEncodeBulkString("dbfilename")
 			response += respEncodeBulkString(RDB.config.dbFileName)
