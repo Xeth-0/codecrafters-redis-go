@@ -66,6 +66,7 @@ type StreamEntry struct {
 type RedisStream struct {
 	entries    map[string]*StreamEntry // Map of entries by ID
 	entryOrder []string                // Maintain the order of entry.
+	blockCh chan string
 }
 
 type RedisStreamStore struct {

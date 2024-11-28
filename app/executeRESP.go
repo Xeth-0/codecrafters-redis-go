@@ -11,7 +11,7 @@ import (
 var ackChan = make(chan bool)
 
 func executeResp(commands []string, conn net.Conn) (responses []string, err error) {
-	fmt.Println("COMMAND: ", commands[0])
+	// fmt.Println("COMMAND: ", commands[0])
 	switch commands[0] {
 	case "ping":
 		return onPing()
@@ -54,10 +54,10 @@ func onXREAD(commands []string) ([]string, error) {
 	if len(args) < 3 {
 		return nil, fmt.Errorf("xread: not enough arguments")
 	}
-	
+
 	// Start of "[streams ...streamKey]"
 	streamsStart := 0
-	
+
 	// Is the command blocking?
 	isBlocking := false
 	blockingMs := 0
@@ -66,9 +66,9 @@ func onXREAD(commands []string) ([]string, error) {
 		isBlocking = true
 		ms, err := strconv.Atoi(args[1])
 		if err != nil {
-			return nil, fmt.Errorf("xread: invalid blocking timeout")	
+			return nil, fmt.Errorf("xread: invalid blocking timeout")
 		}
-		
+
 		blockingMs = ms
 		streamsStart = 2
 	}
@@ -76,12 +76,8 @@ func onXREAD(commands []string) ([]string, error) {
 		return nil, fmt.Errorf("xread: incorrect format, expected 'streams [...stream_key]'")
 	}
 
+	// move the pointer to the start of the stream-keys
 	streamsStart++
-
-	// Uhhh, just sleep? Kinda cheating but welp. works for now
-	if isBlocking{
-		time.Sleep(time.Duration(blockingMs) * time.Millisecond)
-	}
 
 	// Split arguments into stream keys and their respective start IDs
 	numStreams := len(args[streamsStart:]) / 2 // Will be evenly divisible by 2 (after "streams", we have [...streamKey] [...entryIDs] , which should be the same number)
@@ -100,6 +96,29 @@ func onXREAD(commands []string) ([]string, error) {
 		}
 
 		startID := startIDs[i]
+
+		// Uhhh, just sleep? Kinda cheating but welp. works for now
+		if isBlocking {
+			var timeChan <-chan time.Time = nil
+			if blockingMs != 0 {
+				timeChan = time.After(time.Duration(blockingMs) * time.Millisecond)
+			}
+
+			updateChan := stream.blockCh
+
+		timeloop:
+			for {
+				select {
+				case <-timeChan:
+					break timeloop
+				case newEntry := <-updateChan:
+					if startID < newEntry {
+						stream, _ = RDB.streamStore.streams[streamKey]
+						break timeloop
+					}
+				}
+			}
+		}
 
 		entries := make([]StreamEntry, 0)
 
@@ -194,6 +213,7 @@ func onXADD(commands []string) ([]string, error) {
 		RDB.streamStore.streams[streamKey] = RedisStream{
 			entries:    make(map[string]*StreamEntry),
 			entryOrder: make([]string, 0),
+			blockCh:    make(chan string),
 		}
 		stream = RDB.streamStore.streams[streamKey]
 	}
@@ -221,6 +241,12 @@ func onXADD(commands []string) ([]string, error) {
 	stream.entries[entryId] = streamEntry
 	stream.entryOrder = append(stream.entryOrder, entryId)
 	RDB.streamStore.lastStreamEntryID = entryId // storing this entry ID as the last one added.
+	
+	// update the channel
+	select { // non blocking update
+	case stream.blockCh <- entryId:
+	default:
+	}
 
 	RDB.streamStore.streams[streamKey] = stream
 
