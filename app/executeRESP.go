@@ -65,7 +65,9 @@ func onXRANGE(commands []string) ([]string, error) {
 	// gather the entries
 	entries := make([]StreamEntry, 0)
 	for _, entryID := range stream.entryOrder {
-		if entryID >= startID && entryID <= endID {
+		startIdIsValid := (startID == "-") || (entryID >= startID)
+		endIdIsValid := (endID == "+") || (entryID <= endID)
+		if startIdIsValid && endIdIsValid {
 			entries = append(entries, *stream.entries[entryID])
 		}
 	}
@@ -96,7 +98,7 @@ func onXADD(commands []string) ([]string, error) {
 
 	streamKey := args[0]
 	entryId := args[1]
-	
+
 	stream, exists := RDB.streamStore.streams[streamKey]
 	if !exists {
 		RDB.streamStore.streams[streamKey] = RedisStream{
@@ -111,7 +113,6 @@ func onXADD(commands []string) ([]string, error) {
 		response := respEncodeError(err.Error())
 		return []string{response}, nil
 	}
-
 
 	streamEntry := &StreamEntry{
 		id:     entryId,
