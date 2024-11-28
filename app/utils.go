@@ -56,7 +56,7 @@ func handleStreamEntryID(stream RedisStream, newEntryID string) (string, error) 
 	// Validate the full entry ID
 	isValid, err := validateStreamEntryID(newEntryID)
 	if !isValid || err != nil {
-		return "", fmt.Errorf("invalid entry ID: %s, error: %v", newEntryID, err)
+		return "", err
 	}
 
 	// Return the valid entry ID
