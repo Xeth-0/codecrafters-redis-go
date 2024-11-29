@@ -12,6 +12,7 @@ var ackChan = make(chan bool)
 func executeResp(commands []string, conn net.Conn) (responses []string, err error) {
 	// fmt.Println("COMMAND: ", commands[0])
 	switch commands[0] {
+
 	case "ping":
 		return onPing()
 	case "echo":
@@ -31,7 +32,8 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 	case "replconf":
 		return onReplConf(commands, ackChan)
 	case "psync":
-		registerReplica(conn) // Save the connection as a replica for propagation.
+		// Save the connection as a replica for propagation.
+		registerReplica(conn)
 		return onPSync()
 	case "wait":
 		return onWait(commands, ackChan)
@@ -43,8 +45,36 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 		return onXADD(commands)
 	case "xread":
 		return onXREAD(commands)
+	case "incr":
+		return onINCR(commands)
+
 	}
 	return nil, fmt.Errorf("error parsing request")
+}
+
+func onINCR(commands []string) ([]string, error){
+	args := commands[1:]
+
+	key := args[0]
+
+	record, exists := RDB.keyValueStore.db[key]
+	if !exists {
+		RDB.keyValueStore.db[key] = RedisRecord{
+			value: "1",
+		}
+		return []string{respEncodeInteger(1)}, nil
+	}
+
+	numericalVal, err := strconv.Atoi(record.value)
+	if err != nil { // not a number
+		return []string{respEncodeError("respEERR value is not an integer or out of range")}, nil
+	}
+
+	// Increment the value
+	numericalVal++
+	record.value = fmt.Sprintf("%d",numericalVal)
+	
+	return []string{respEncodeInteger(numericalVal)}, nil
 }
 
 func onXREAD(commands []string) ([]string, error) {
@@ -145,7 +175,7 @@ func onXREAD(commands []string) ([]string, error) {
 			for _, key := range entry.keys {
 				entryFields = append(entryFields, key, entry.fields[key])
 			}
-			
+
 			// Add encoded values to the response
 			encodedEntryID := respEncodeBulkString(entry.id)
 			encodedEntryFields := respEncodeStringArray(entryFields)

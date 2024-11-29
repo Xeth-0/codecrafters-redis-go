@@ -41,7 +41,7 @@ type RESP struct {
 
 // Value stored in the in-memory key-value store.
 type RedisRecord struct {
-	value     string    // string value the key will correspond to
+	value     string // string value the key will correspond to
 	expires   bool      // will expire or not
 	expiresAt time.Time // time at which the value will be inaccessible. (Using a passive delete)
 }
@@ -66,7 +66,7 @@ type StreamEntry struct {
 type RedisStream struct {
 	entries    map[string]*StreamEntry // Map of entries by ID
 	entryOrder []string                // Maintain the order of entry.
-	blockCh chan string
+	blockCh    chan string
 }
 
 type RedisStreamStore struct {
