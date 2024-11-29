@@ -62,9 +62,25 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 		return onMULTI(commands, conn)
 	case "exec":
 		return onEXEC(commands, conn)
+	case "discard":
+		return onDISCARD(commands, conn)
 
 	}
 	return nil, fmt.Errorf("error parsing request")
+}
+
+func onDISCARD(commands []string, conn net.Conn) ([]string, error) {
+	transaction, exists := CONFIG.transactions[conn]
+	if !exists || !transaction.active {
+		return []string{respEncodeError("ERR DISCARD without MULTI")}, nil
+	}
+
+	// clear the transaction
+	transaction.active = false
+	transaction.commandQueue = make([][]string, 0)
+
+	CONFIG.transactions[conn] = transaction
+	return []string{respEncodeString("OK")}, nil
 }
 
 func onEXEC(commands []string, conn net.Conn) ([]string, error) {
