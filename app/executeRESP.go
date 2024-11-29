@@ -52,13 +52,14 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 	return nil, fmt.Errorf("error parsing request")
 }
 
-func onINCR(commands []string) ([]string, error){
+func onINCR(commands []string) ([]string, error) {
 	args := commands[1:]
 
 	key := args[0]
 
 	record, exists := RDB.keyValueStore.db[key]
 	if !exists {
+		fmt.Println("incr: key doesnt exist, creating new key-value pair...")
 		RDB.keyValueStore.db[key] = RedisRecord{
 			value: "1",
 		}
@@ -72,8 +73,9 @@ func onINCR(commands []string) ([]string, error){
 
 	// Increment the value
 	numericalVal++
-	record.value = fmt.Sprintf("%d",numericalVal)
-	
+	record.value = fmt.Sprintf("%d", numericalVal)
+	RDB.keyValueStore.db[key] = record
+
 	return []string{respEncodeInteger(numericalVal)}, nil
 }
 
