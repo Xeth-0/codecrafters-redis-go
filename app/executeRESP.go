@@ -59,13 +59,14 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 func onEXEC(commands []string) ([]string, error) {
 	transactions := CONFIG.transactions.commandQueue
 	transactionsCalled := CONFIG.transactions.transactionsCalled
-	
-	if transactionsCalled > 0 {
-		transaction := transactions[0] // grab the first transaction queued
 
-		if len(transaction) == 0 { // multi has been called, but no commands have been queued
+	if transactionsCalled > 0 {
+		if len(transactions) == 0 { // multi has been called, but no commands have been queued
+			CONFIG.transactions.transactionsCalled--
 			return []string{respEncodeString("OK")}, nil
 		}
+
+		transaction := transactions[0] // grab the first transaction queued
 
 		responses := make([]string, 0, len(transaction))
 		for _, request := range transaction {
@@ -76,6 +77,7 @@ func onEXEC(commands []string) ([]string, error) {
 
 			responses = append(responses, response...)
 		}
+		CONFIG.transactions.transactionsCalled--
 		return responses, nil
 	}
 
