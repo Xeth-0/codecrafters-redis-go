@@ -90,12 +90,20 @@ func onEXEC(commands []string, conn net.Conn) ([]string, error) {
 
 		responses = append(responses, response...)
 	}
+
+	// Construct the final response
+	response := fmt.Sprintf("*%d\r\n", len(responses))
+
+	for _, r := range responses {
+		response += r
+	}
+
 	// clear the transaction
 	transaction.active = false
 	transaction.commandQueue = make([][]string, 0)
 	CONFIG.transactions[conn] = transaction
-	
-	return responses, nil
+
+	return []string{response}, nil
 }
 
 func onMULTI(commands []string, conn net.Conn) ([]string, error) {
