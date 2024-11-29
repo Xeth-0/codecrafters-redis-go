@@ -26,6 +26,7 @@ func registerReplica(replicaConn net.Conn) {
 	)
 }
 
+// Validates incoming stream entry ID, generates a new ID if the entry ID has auto-generate(*) as its value.
 func handleStreamEntryID(stream RedisStream, newEntryID string) (string, error) {
 	// Generate a full entry ID if newEntryID is "*"
 	if newEntryID == "*" {
@@ -72,7 +73,7 @@ func handleStreamEntryID(stream RedisStream, newEntryID string) (string, error) 
 	return newEntryID, nil
 }
 
-// validates the stream entry ID to be correct. error returned from this should be the reply on XADD if invalid.
+// Validates the stream entry ID to be correct. error returned from this should be the reply on XADD if invalid.
 func validateStreamEntryID(entryID string) (bool, error) {
 	splitEntryID := strings.Split(entryID, "-")
 	if len(splitEntryID) != 2 {

@@ -9,10 +9,11 @@ import (
 	"time"
 )
 
+// Some global variables. Stores the in-memory stores and server configuration values.
 var RDB = RedisRDB{}
 var CONFIG = RedisConfig{
-	transactions: make(map[net.Conn]Transaction),
-	replicas: make([]Replica, 0),
+	transactions: make(map[net.Conn]RedisTransaction),
+	replicas:     make([]Replica, 0),
 }
 
 func main() {
@@ -91,17 +92,15 @@ func startServer() {
 }
 
 // Go-routine to accept and respond to new connections. Keeps running to listen to
-//
-//	and keep the connection alive.
+// and keep the connection alive.
 func handleConnection(conn net.Conn, isMasterConn bool) {
 	defer conn.Close()
 
-	for {
+	for { // infinite loop. keep trying to listen to incoming requests from that connection.
 		readBuffer, err := readFromConnection(conn)
 		if err != nil {
 			continue // discard and continue
 		}
-		// fmt.Println("Incoming Request: ", string(readBuffer))
 
 		respRequests, err := parseRESP(readBuffer)
 		if err != nil {

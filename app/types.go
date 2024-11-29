@@ -46,9 +46,6 @@ type RedisRecord struct {
 	expiresAt time.Time // time at which the value will be inaccessible. (Using a passive delete)
 }
 
-// Maybe this could've been the same as redisRDB, with just the valuetype as an added property. Will change later if there's no benefit to this.
-// This also should be a radix-trie. I uhhh, i can't do that yet. For now, it's a map, within a map. with a bunch of hacks for the functionalities.
-
 // Config values for the RDB used.
 type RDBConfig struct {
 	dir        string // directory of the rdb file
@@ -100,13 +97,13 @@ type RedisConfig struct {
 	rdbDbFileName string // filename for the rdb to load
 	port          int    // port to bind the server to
 
-	transactions map[net.Conn]Transaction
+	transactions map[net.Conn]RedisTransaction
 	// transactions TransactionStore
 }
 
-type Transaction struct {
-	active bool
-	commandQueue       [][]string // maps a command queue for each connection (one queue per connection rn)
+type RedisTransaction struct {
+	active       bool       // if multi has been called on this connection. (server will queue all incoming commands until exec)
+	commandQueue [][]string // queues incoming commands from a connection into this server.
 }
 
 // Stores info for a single replica server.

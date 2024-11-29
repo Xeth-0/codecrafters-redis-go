@@ -26,31 +26,31 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 	switch command {
 
 	case "ping":
-		return onPing()
+		return onPING()
 	case "echo":
-		return onEcho(commands)
+		return onECHO(commands)
 	case "set":
-		return onSet(commands)
+		return onSET(commands)
 	case "get":
-		return onGet(commands)
+		return onGET(commands)
 	case "config":
-		return onConfig(commands)
+		return onCONFIG(commands)
 	case "keys":
-		return onKeys(commands)
+		return onKEYS(commands)
 	case "command":
-		return onCommand(commands)
+		return onCOMMAND(commands)
 	case "info":
-		return onInfo(commands)
+		return onINFO(commands)
 	case "replconf":
-		return onReplConf(commands, ackChan)
+		return onREPLCONF(commands, ackChan)
 	case "psync":
 		// Save the connection as a replica for propagation.
 		registerReplica(conn)
-		return onPSync()
+		return onPSYNC()
 	case "wait":
-		return onWait(commands, ackChan)
+		return onWAIT(commands, ackChan)
 	case "type":
-		return onType(commands)
+		return onTYPE(commands)
 	case "xrange":
 		return onXRANGE(commands)
 	case "xadd":
@@ -70,7 +70,7 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 	return nil, fmt.Errorf("error parsing request")
 }
 
-func onDISCARD(commands []string, conn net.Conn) ([]string, error) {
+func onDISCARD(_ []string, conn net.Conn) ([]string, error) {
 	transaction, exists := CONFIG.transactions[conn]
 	if !exists || !transaction.active {
 		return []string{respEncodeError("ERR DISCARD without MULTI")}, nil
@@ -84,7 +84,7 @@ func onDISCARD(commands []string, conn net.Conn) ([]string, error) {
 	return []string{respEncodeString("OK")}, nil
 }
 
-func onEXEC(commands []string, conn net.Conn) ([]string, error) {
+func onEXEC(_ []string, conn net.Conn) ([]string, error) {
 	transaction, exists := CONFIG.transactions[conn]
 	if !exists || !transaction.active {
 		// multi has not been called
@@ -123,11 +123,11 @@ func onEXEC(commands []string, conn net.Conn) ([]string, error) {
 	return []string{response}, nil
 }
 
-func onMULTI(commands []string, conn net.Conn) ([]string, error) {
+func onMULTI(_ []string, conn net.Conn) ([]string, error) {
 	// make a new transaction
 	transaction, exists := CONFIG.transactions[conn]
 	if !exists {
-		CONFIG.transactions[conn] = Transaction{
+		CONFIG.transactions[conn] = RedisTransaction{
 			active:       true,
 			commandQueue: make([][]string, 0),
 		}
@@ -373,7 +373,7 @@ func onXADD(commands []string) ([]string, error) {
 	return []string{respEncodeBulkString(entryId)}, nil
 }
 
-func onType(commands []string) ([]string, error) {
+func onTYPE(commands []string) ([]string, error) {
 	if len(commands) <= 1 {
 		return []string{}, fmt.Errorf("not enough arguments provided")
 	}
@@ -395,7 +395,7 @@ func onType(commands []string) ([]string, error) {
 	return []string{respEncodeString("none")}, nil
 }
 
-func onWait(commands []string, ackChan chan bool) ([]string, error) {
+func onWAIT(commands []string, ackChan chan bool) ([]string, error) {
 	// Waits(blocks) until it either times out, or gets the specified number of ACKs from replicas. (runs on master server)
 	args := commands[1:]
 
@@ -445,7 +445,7 @@ loop: // label just to break the loop
 	return []string{respEncodeInteger(acks)}, nil
 }
 
-func onPSync() ([]string, error) {
+func onPSYNC() ([]string, error) {
 	// args := commands[1:]
 	responses := make([]string, 0, 3)
 
@@ -463,7 +463,7 @@ func onPSync() ([]string, error) {
 	return responses, nil
 }
 
-func onReplConf(commands []string, ackChan chan bool) ([]string, error) {
+func onREPLCONF(commands []string, ackChan chan bool) ([]string, error) {
 	args := commands[1:]
 	switch args[0] {
 	case "getack":
@@ -485,7 +485,7 @@ func onReplConf(commands []string, ackChan chan bool) ([]string, error) {
 	return responses, nil
 }
 
-func onInfo(commands []string) ([]string, error) {
+func onINFO(commands []string) ([]string, error) {
 	args := commands[1:]
 	responses := make([]string, 0, 3)
 
@@ -506,24 +506,24 @@ func onInfo(commands []string) ([]string, error) {
 	return responses, fmt.Errorf("error handling request: INFO - replication flag not provided (all this can handle at the moment)")
 }
 
-func onCommand(commands []string) ([]string, error) {
+func onCOMMAND(commands []string) ([]string, error) {
 	args := commands[1:]
 
 	if args[0] == "docs" { // default request when initiating a redis-cli connection
-		return onPing()
+		return onPING()
 	}
 
-	return onPing() // just because. // TODO: Fix later
+	return onPING() // just because. // TODO: Fix later
 }
 
-func onPing() ([]string, error) {
+func onPING() ([]string, error) {
 	response := respEncodeString("PONG")
 	responses := []string{response}
 
 	return responses, nil
 }
 
-func onKeys(commands []string) ([]string, error) {
+func onKEYS(commands []string) ([]string, error) {
 	args := commands[1:]
 	responses := make([]string, 0, 3)
 
@@ -548,7 +548,7 @@ func onKeys(commands []string) ([]string, error) {
 	return responses, fmt.Errorf("error handling request: KEYS - '*' not provided")
 }
 
-func onConfig(commands []string) ([]string, error) {
+func onCONFIG(commands []string) ([]string, error) {
 	// only handling get.
 	if len(commands) <= 1 || commands[1] != "get" {
 		return []string{}, fmt.Errorf("error executing resp: unsupported CONFIG command")
@@ -575,7 +575,7 @@ func onConfig(commands []string) ([]string, error) {
 	return responses, nil
 }
 
-func onEcho(commands []string) ([]string, error) {
+func onECHO(commands []string) ([]string, error) {
 	arg := ""
 	responses := make([]string, 0, 1)
 	if len(commands) >= 2 {
@@ -589,7 +589,7 @@ func onEcho(commands []string) ([]string, error) {
 	return responses, nil
 }
 
-func onSet(commands []string) ([]string, error) {
+func onSET(commands []string) ([]string, error) {
 	// Set up the record
 	record := RedisRecord{}
 
@@ -628,7 +628,7 @@ func onSet(commands []string) ([]string, error) {
 	return responses, nil
 }
 
-func onGet(commands []string) ([]string, error) {
+func onGET(commands []string) ([]string, error) {
 	// I am going to cheat a little here. Sometimes during replication propagation,
 	//  the propagation takes a little too long and the GET commands come too soon.
 	//  (before the SETs from the master are propagated). And i'm tired of the race condition.

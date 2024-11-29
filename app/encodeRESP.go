@@ -27,10 +27,12 @@ func respEncodeStringArray(strs []string) string {
 	return arrayString
 }
 
+// returns the resp-encoded string format of the given int.
 func respEncodeInteger(num int) string {
 	return fmt.Sprintf(":%d\r\n", num)
 }
 
+// returns the resp-encoded string format of the given error message.
 func respEncodeError(err string) string {
 	return fmt.Sprintf("-%s\r\n", err)
 }
