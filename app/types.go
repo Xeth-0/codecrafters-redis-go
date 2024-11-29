@@ -100,12 +100,13 @@ type RedisConfig struct {
 	rdbDbFileName string // filename for the rdb to load
 	port          int    // port to bind the server to
 
-	transactions Transactions
+	transactions map[net.Conn]Transaction
+	// transactions TransactionStore
 }
 
-type Transactions struct {
-	transactionsCalled int
-	commandQueue       [][][]string
+type Transaction struct {
+	active bool
+	commandQueue       [][]string // maps a command queue for each connection (one queue per connection rn)
 }
 
 // Stores info for a single replica server.

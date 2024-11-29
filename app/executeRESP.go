@@ -10,19 +10,15 @@ import (
 var ackChan = make(chan bool)
 
 func executeResp(commands []string, conn net.Conn) (responses []string, err error) {
-	// fmt.Println("COMMAND: ", commands[0])
-	
-	// If MULTI has been called, the command will not get executed, but queued
-	if (CONFIG.transactions.transactionsCalled > 0){
-		lastTransactionIdx := CONFIG.transactions.transactionsCalled - 1
-		commandQueue := CONFIG.transactions.commandQueue[lastTransactionIdx]
-		commandQueue = append(commandQueue, commands)
-		
-		CONFIG.transactions.commandQueue[lastTransactionIdx] = commandQueue
-		
+	// If MULTI has been called, the command will not get executed, but queued.
+	transaction, exists := CONFIG.transactions[conn] // check if there is an active transaction on that connection
+	if exists && transaction.active && commands[0] != "multi" && commands[0] != "exec"{
+		// Queue the new command
+		transaction.commandQueue = append(transaction.commandQueue, commands)
+		CONFIG.transactions[conn] = transaction
+
 		return []string{respEncodeString("QUEUED")}, nil
 	}
-
 
 	switch commands[0] {
 
@@ -61,45 +57,55 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 	case "incr":
 		return onINCR(commands)
 	case "multi":
-		return onMULTI(commands)
+		return onMULTI(commands, conn)
 	case "exec":
-		return onEXEC(commands)
+		return onEXEC(commands, conn)
 
 	}
 	return nil, fmt.Errorf("error parsing request")
 }
 
-func onEXEC(commands []string) ([]string, error) {
-	transactions := CONFIG.transactions.commandQueue
-	transactionsCalled := CONFIG.transactions.transactionsCalled
-
-	if transactionsCalled > 0 {
-		if len(transactions) == 0 { // multi has been called, but no commands have been queued
-			CONFIG.transactions.transactionsCalled--
-			return []string{"*0\r\n"}, nil
-		}
-
-		transaction := transactions[0] // grab the first transaction queued
-
-		responses := make([]string, 0, len(transaction))
-		for _, request := range transaction {
-			response, err := executeResp(request, nil) // leaving conn as nil ig.
-			if err != nil {
-				// handle this later as well.
-			}
-
-			responses = append(responses, response...)
-		}
-		CONFIG.transactions.transactionsCalled--
-		return responses, nil
+func onEXEC(commands []string, conn net.Conn) ([]string, error) {
+	transaction, exists := CONFIG.transactions[conn]
+	if !exists || !transaction.active {
+		// multi has not been called
+		return []string{respEncodeError("ERR EXEC without MULTI")}, nil
 	}
 
-	// multi has not been called
-	return []string{respEncodeError("ERR EXEC without MULTI")}, nil
+	if len(transaction.commandQueue) == 0 {
+		// multi has been called, but no commands have been queued. return empty array and clear the multi
+		transaction.active = false
+		CONFIG.transactions[conn] = transaction
+		return []string{"*0\r\n"}, nil
+	}
+
+	responses := make([]string, 0, len(transaction.commandQueue))
+	for _, request := range transaction.commandQueue {
+		response, err := executeResp(request, nil) // leaving conn as nil ig.
+		if err != nil {
+			// handle this later as well.
+		}
+
+		responses = append(responses, response...)
+	}
+	transaction.active = false
+	CONFIG.transactions[conn] = transaction
+	return responses, nil
 }
 
-func onMULTI(commands []string) ([]string, error) {
-	CONFIG.transactions.transactionsCalled++
+func onMULTI(commands []string, conn net.Conn) ([]string, error) {
+	// make a new transaction
+	transaction, exists := CONFIG.transactions[conn]
+	if !exists {
+		CONFIG.transactions[conn] = Transaction{
+			active:       true,
+			commandQueue: make([][]string, 0),
+		}
+	} else if transaction.active {
+		return []string{respEncodeError("ERR MULTI calls can not be nested")}, nil
+	}
+	transaction.active = true
+	CONFIG.transactions[conn] = transaction
 	return []string{respEncodeString("OK")}, nil
 }
 
@@ -601,11 +607,8 @@ func onGet(commands []string) ([]string, error) {
 
 	responses := make([]string, 0, 1)
 	val, exists := RDB.keyValueStore.db[commands[1]]
-	if !exists {
-		return responses, fmt.Errorf("error handling request: GET - value not found")
-	}
-	if val.expires && val.expiresAt.Compare(time.Now()) == -1 {
-		// expired
+	if (!exists) || (val.expires && val.expiresAt.Compare(time.Now()) == -1) {
+		// expired or doesn't exist
 		responses = append(responses, "$-1\r\n")
 		return responses, nil
 	}

@@ -10,7 +10,10 @@ import (
 )
 
 var RDB = RedisRDB{}
-var CONFIG = RedisConfig{}
+var CONFIG = RedisConfig{
+	transactions: make(map[net.Conn]Transaction),
+	replicas: make([]Replica, 0),
+}
 
 func main() {
 	if len(os.Args) < 4 {
