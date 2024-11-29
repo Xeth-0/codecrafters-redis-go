@@ -68,7 +68,7 @@ func onINCR(commands []string) ([]string, error) {
 
 	numericalVal, err := strconv.Atoi(record.value)
 	if err != nil { // not a number
-		return []string{respEncodeError("respEERR value is not an integer or out of range")}, nil
+		return []string{respEncodeError("ERR value is not an integer or out of range")}, nil
 	}
 
 	// Increment the value
