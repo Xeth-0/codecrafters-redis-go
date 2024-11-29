@@ -63,6 +63,10 @@ func onEXEC(commands []string) ([]string, error) {
 	if transactionsCalled > 0 {
 		transaction := transactions[0] // grab the first transaction queued
 
+		if len(transaction) == 0 { // multi has been called, but no commands have been queued
+			return []string{respEncodeString("OK")}, nil
+		}
+
 		responses := make([]string, 0, len(transaction))
 		for _, request := range transaction {
 			response, err := executeResp(request, nil) // leaving conn as nil ig.
