@@ -12,7 +12,9 @@ var ackChan = make(chan bool)
 func executeResp(commands []string, conn net.Conn) (responses []string, err error) {
 	// If MULTI has been called, the command will not get executed, but queued.
 	transaction, exists := CONFIG.transactions[conn] // check if there is an active transaction on that connection
-	if exists && transaction.active && commands[0] != "multi" && commands[0] != "exec"{
+
+	shouldQueue := exists && transaction.active && commands[0] != "multi" && commands[0] != "exec"
+	if shouldQueue {
 		// Queue the new command
 		transaction.commandQueue = append(transaction.commandQueue, commands)
 		CONFIG.transactions[conn] = transaction
