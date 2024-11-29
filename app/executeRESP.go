@@ -11,6 +11,19 @@ var ackChan = make(chan bool)
 
 func executeResp(commands []string, conn net.Conn) (responses []string, err error) {
 	// fmt.Println("COMMAND: ", commands[0])
+	
+	// If MULTI has been called, the command will not get executed, but queued
+	if (CONFIG.transactions.transactionsCalled > 0){
+		lastTransactionIdx := CONFIG.transactions.transactionsCalled - 1
+		commandQueue := CONFIG.transactions.commandQueue[lastTransactionIdx]
+		commandQueue = append(commandQueue, commands)
+		
+		CONFIG.transactions.commandQueue[lastTransactionIdx] = commandQueue
+		
+		return []string{respEncodeString("QUEUED")}, nil
+	}
+
+
 	switch commands[0] {
 
 	case "ping":
