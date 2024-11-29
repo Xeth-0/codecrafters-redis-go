@@ -90,8 +90,11 @@ func onEXEC(commands []string, conn net.Conn) ([]string, error) {
 
 		responses = append(responses, response...)
 	}
+	// clear the transaction
 	transaction.active = false
+	transaction.commandQueue = make([][]string, 0)
 	CONFIG.transactions[conn] = transaction
+	
 	return responses, nil
 }
 
