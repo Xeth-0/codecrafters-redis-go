@@ -63,7 +63,7 @@ func onEXEC(commands []string) ([]string, error) {
 	if transactionsCalled > 0 {
 		if len(transactions) == 0 { // multi has been called, but no commands have been queued
 			CONFIG.transactions.transactionsCalled--
-			return []string{respEncodeString("OK")}, nil
+			return []string{"*0\r\n"}, nil
 		}
 
 		transaction := transactions[0] // grab the first transaction queued
