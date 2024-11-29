@@ -76,7 +76,7 @@ func onEXEC(commands []string) ([]string, error) {
 	}
 
 	// multi has not been called
-	return []string{respEncodeError("something goes here later ig")}, nil
+	return []string{respEncodeError("ERR EXEC without MULTI")}, nil
 }
 
 func onMULTI(commands []string) ([]string, error) {
