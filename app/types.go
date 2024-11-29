@@ -41,7 +41,7 @@ type RESP struct {
 
 // Value stored in the in-memory key-value store.
 type RedisRecord struct {
-	value     string // string value the key will correspond to
+	value     string    // string value the key will correspond to
 	expires   bool      // will expire or not
 	expiresAt time.Time // time at which the value will be inaccessible. (Using a passive delete)
 }
@@ -99,6 +99,13 @@ type RedisConfig struct {
 	rdbDir        string // rdb config options
 	rdbDbFileName string // filename for the rdb to load
 	port          int    // port to bind the server to
+
+	transactions Transactions
+}
+
+type Transactions struct {
+	transactionsCalled int
+	commandQueue       [][][]string
 }
 
 // Stores info for a single replica server.

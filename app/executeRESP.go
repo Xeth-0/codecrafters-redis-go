@@ -47,9 +47,41 @@ func executeResp(commands []string, conn net.Conn) (responses []string, err erro
 		return onXREAD(commands)
 	case "incr":
 		return onINCR(commands)
+	case "multi":
+		return onMULTI(commands)
+	case "exec":
+		return onEXEC(commands)
 
 	}
 	return nil, fmt.Errorf("error parsing request")
+}
+
+func onEXEC(commands []string) ([]string, error) {
+	transactions := CONFIG.transactions.commandQueue
+	transactionsCalled := CONFIG.transactions.transactionsCalled
+	
+	if transactionsCalled > 0 {
+		transaction := transactions[0] // grab the first transaction queued
+
+		responses := make([]string, 0, len(transaction))
+		for _, request := range transaction {
+			response, err := executeResp(request, nil) // leaving conn as nil ig.
+			if err != nil {
+				// handle this later as well.
+			}
+
+			responses = append(responses, response...)
+		}
+		return responses, nil
+	}
+
+	// multi has not been called
+	return []string{respEncodeError("something goes here later ig")}, nil
+}
+
+func onMULTI(commands []string) ([]string, error) {
+	CONFIG.transactions.transactionsCalled++
+	return []string{respEncodeString("OK")}, nil
 }
 
 func onINCR(commands []string) ([]string, error) {
